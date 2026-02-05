@@ -57,7 +57,7 @@ GEMOLOGY_CONFIG_ROWS = [
 ]
 
 TOTAL_HIGHLIGHT_COLOR = "#fff4b8"
-SECTION_HEADER_COLOR = "#e8f2ff"
+SECTION_HEADER_COLOR = "#e3f2fd"
 CONFIG_HIGHLIGHT_COLOR = "#e6f4ea"
 
 # =========================================================
@@ -242,3 +242,4 @@ st.markdown("---")
 st.caption(
     "© Board Excel Intelligence Platform — Spreadsheet & Executive Insight Layer"
 )
+
