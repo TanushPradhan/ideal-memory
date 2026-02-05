@@ -35,7 +35,7 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# PROFESSIONAL COLUMN NAME OVERRIDES (BOARD SAFE)
+# COLUMN NAME OVERRIDES
 # =========================================================
 COLUMN_NAME_OVERRIDES = {
     "Gemology": {
@@ -72,22 +72,16 @@ COLUMN_NAME_OVERRIDES = {
 # =========================================================
 def load_excel_safely(path, sheet):
     if not os.path.exists(path):
-        st.error(
-            f"🚫 Required board file not found:\n\n{path}\n\n"
-            "Please contact the administrator."
-        )
+        st.error(f"🚫 Required board file not found:\n\n{path}")
         st.stop()
     try:
         return pd.read_excel(path, sheet_name=sheet)
     except Exception as e:
-        st.error(
-            "🚫 Unable to read the configured Excel sheet.\n\n"
-            f"Details: {e}"
-        )
+        st.error(f"🚫 Unable to read Excel file.\n\n{e}")
         st.stop()
 
 # =========================================================
-# SIDEBAR – NAVIGATION
+# SIDEBAR
 # =========================================================
 st.sidebar.header("📁 Navigation")
 
@@ -107,75 +101,74 @@ view_mode = st.sidebar.radio(
 config = DEPARTMENT_CONFIG[selected_department]
 df = load_excel_safely(config["file"], config["sheet"])
 
-# Rename columns professionally
 df = df.rename(columns=COLUMN_NAME_OVERRIDES.get(selected_department, {}))
-
-# Replace NaN with empty strings for clean display
-df_display = df.fillna("")
+df = df.fillna("")
 
 # =========================================================
-# STYLING (NO AUTO HIGHLIGHTING)
-# =========================================================
-def style_dataframe(df):
-    return (
-        df.style
-        .set_properties(**{
-            "white-space": "normal",
-            "word-wrap": "break-word",
-            "vertical-align": "top",
-            "text-align": "left"
-        })
-        .set_table_styles([
-            {
-                "selector": "th",
-                "props": [
-                    ("white-space", "normal"),
-                    ("word-wrap", "break-word"),
-                    ("text-align", "center"),
-                    ("font-weight", "bold")
-                ]
-            }
-        ])
-    )
-
-# =========================================================
-# INTERACTIVE SPREADSHEET VIEW
-# (Fast scrolling, Excel-like)
+# INTERACTIVE VIEW (NO WRAP – EXPECTED)
 # =========================================================
 if view_mode == "Interactive Spreadsheet":
     st.subheader(f"📄 Spreadsheet View — {selected_department}")
-    st.caption("Excel-like, read-only view. No assumptions or calculations.")
+    st.caption("Excel-like, read-only view (fast scrolling).")
 
     st.dataframe(
-        df_display,
+        df,
         use_container_width=True,
         height=650
     )
 
 # =========================================================
-# EXECUTIVE VIEW
-# (Board-safe, wrapped, readable)
+# EXECUTIVE VIEW (FULL TEXT WRAP – GUARANTEED)
 # =========================================================
 else:
     st.subheader(f"🧑‍💼 Executive View — {selected_department}")
-    st.caption("Board-friendly structured view with complete visibility.")
+    st.caption("Board-ready view with fully wrapped text.")
 
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-
     if numeric_cols:
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Rows", len(df))
-        col2.metric("Numeric Columns", len(numeric_cols))
-        col3.metric(
-            "Total Numeric Sum",
-            f"{df[numeric_cols].sum().sum():,.2f}"
-        )
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Rows", len(df))
+        c2.metric("Numeric Columns", len(numeric_cols))
+        c3.metric("Total Numeric Sum", f"{df[numeric_cols].sum().sum():,.2f}")
 
     st.markdown("---")
 
-    # IMPORTANT:
-    # st.write + Pandas Styler is REQUIRED for text wrapping
-    st.write(style_dataframe(df_display))
+    # =======================
+    # HTML TABLE (WRAPPED)
+    # =======================
+    html_table = df.to_html(
+        index=True,
+        escape=False
+    )
+
+    st.markdown(
+        f"""
+        <div style="overflow-x:auto;">
+            <style>
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                }}
+                th, td {{
+                    border: 1px solid #333;
+                    padding: 8px;
+                    vertical-align: top;
+                    white-space: normal !important;
+                    word-wrap: break-word;
+                    text-align: left;
+                    font-size: 13px;
+                }}
+                th {{
+                    background-color: #1f2933;
+                    color: white;
+                    text-align: center;
+                }}
+            </style>
+            {html_table}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # =========================================================
 # FOOTER
