@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import os
 import streamlit.components.v1 as components
-import altair as alt
 
 # =========================================================
 # APP CONFIG
@@ -37,7 +36,7 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# HIGHLIGHT RULES (LOCKED)
+# HIGHLIGHT RULES (LOCKED – APPROVED)
 # =========================================================
 TOTAL_KEYWORDS = ["total", "grand total", "total (approx.)"]
 
@@ -47,15 +46,9 @@ SECTION_HEADER_KEYWORDS = [
 ]
 
 MANUFACTURING_MAIN_HEADER_KEYWORDS = [
-    "sl. no.",
-    "particulars",
-    "department",
-    "details",
-    "quantity",
-    "cost per items",
-    "according to the capacity",
-    "cost-to-company",
-    "remarks"
+    "sl. no.", "particulars", "department", "details",
+    "quantity", "cost per items", "according to the capacity",
+    "cost-to-company", "remarks"
 ]
 
 GEMOLOGY_CONFIG_ROWS = [
@@ -72,7 +65,7 @@ GEMOLOGY_CONFIG_ROWS = [
 TOTAL_HIGHLIGHT_COLOR = "#fff4b8"
 SECTION_HEADER_COLOR = "#fff2cc"
 CONFIG_HIGHLIGHT_COLOR = "#e6f4ea"
-MAIN_HEADER_COLOR = "#e7f3ff"   # ✅ LIGHT BLUE
+MAIN_HEADER_COLOR = "#e7f3ff"
 
 # =========================================================
 # SAFE EXCEL LOADER
@@ -99,7 +92,7 @@ config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
 
 # =========================================================
-# HTML TABLE RENDERER (APPROVED + EXTENDED)
+# HTML TABLE RENDERER (FINAL, APPROVED)
 # =========================================================
 def render_html_table(df, department):
     html = f"""
@@ -181,7 +174,7 @@ def render_html_table(df, department):
     return html
 
 # =========================================================
-# DISPLAY TABLE
+# TABLE DISPLAY
 # =========================================================
 st.subheader(f"📄 Spreadsheet View — {department}")
 st.caption(
@@ -196,18 +189,49 @@ components.html(
 )
 
 # =========================================================
-# INSIGHTS (UNCHANGED)
+# EXECUTIVE INSIGHTS (TEXT ONLY – STATIC)
 # =========================================================
 st.markdown("---")
-st.subheader("📊 Executive Insights")
-st.caption("Static strategic interpretation for governing council review (₹ in Lakhs).")
+st.subheader("🧑‍💼 Executive Insights")
+st.caption("Board-level interpretation of the above data. Figures are indicative and planning-oriented.")
 
-# (Insights + charts remain exactly as before)
+if department == "Gemology":
+    st.markdown("""
+**Key Observations – Gemology**
+
+• The Gemology program is **student-capacity driven**, with most investments scaling directly with class strength (~65 students).  
+• A significant portion of cost is allocated to **per-student resources**, indicating a strong focus on hands-on learning.  
+• High-value instruments (microscopes, grading equipment) are **shared assets**, optimizing capital efficiency.  
+• Room preparation and infrastructure controls highlight **security and compliance priorities**, critical for gemstone handling.  
+• Overall, Gemology demonstrates a **balanced CAPEX model**: high academic rigor with controlled shared investments.
+""")
+
+elif department == "Manufacturing":
+    st.markdown("""
+**Key Observations – Manufacturing**
+
+• Manufacturing shows the **highest absolute capital investment**, driven by heavy machinery and equipment.  
+• Most machines are **shared across students**, significantly reducing per-student cost.  
+• High-cost items such as casting machines, furnaces, and compressors dominate the budget.  
+• Consumables are structured as **shared recurring resources**, improving long-term cost sustainability.  
+• The model supports **scalability** — increasing intake does not proportionally increase CAPEX.
+""")
+
+elif department == "CAD":
+    st.markdown("""
+**Key Observations – CAD**
+
+• CAD investment is primarily **software- and system-driven**, rather than physical infrastructure.  
+• Costs are largely front-loaded through **licenses and workstations**, with low marginal cost per additional student.  
+• Hardware requirements are standardized, allowing predictable budgeting.  
+• CAD demonstrates the **lowest operational complexity** among the three departments.  
+• This program is **highly scalable** and cost-efficient for expansion.
+""")
 
 # =========================================================
 # FOOTER
 # =========================================================
 st.markdown("---")
 st.caption(
-    "© Board Excel Intelligence Platform — Spreadsheet Rendering & Executive Insight Layer"
+    "© Board Excel Intelligence Platform — Spreadsheet Rendering & Executive Interpretation Layer"
 )
