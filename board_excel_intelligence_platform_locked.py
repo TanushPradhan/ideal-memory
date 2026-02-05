@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import os
-import streamlit.components.v1 as components
 
 # =========================================================
 # APP CONFIG
@@ -23,60 +22,26 @@ st.caption(
 DEPARTMENT_CONFIG = {
     "Gemology": {
         "file": "IIGJ Mumbai - Academic Expansion Plan - Gemology Formatted.xlsx",
-        "sheet": 0
+        "sheet": "Department of Gemmology_Format"
     },
     "Manufacturing": {
         "file": "IIGJ - Academic Expansion Plan - Manufacturing Formatted.xlsx",
-        "sheet": 0
+        "sheet": "Formated_Budget"
     },
     "CAD": {
         "file": "IIGJ Mumbai - Academic expansion Plan_CAD Formatted.xlsx",
-        "sheet": 0
+        "sheet": "Formatted_Budget"
     }
 }
 
 # =========================================================
-# HIGHLIGHT RULES
-# =========================================================
-TOTAL_KEYWORDS = [
-    "total",
-    "grand total",
-    "total (approx.)"
-]
-
-SECTION_HEADER_KEYWORDS = [
-    "instrument name",
-    "type",
-    "specification",
-    "quantity",
-    "unit price",
-    "total in lakhs",
-    "remarks"
-]
-
-GEMOLOGY_CONFIG_ROWS = [
-    "number of students",
-    "class requirements with spare",
-    "singular instruments",
-    "instruments per student",
-    "shared instruments required",
-    "room preparation",
-    "student per table",
-    "faculty required"
-]
-
-TOTAL_HIGHLIGHT_COLOR = "#fff4b8"
-SECTION_HEADER_COLOR = "#fff2cc"
-CONFIG_HIGHLIGHT_COLOR = "#e6f4ea"
-
-# =========================================================
-# SAFE EXCEL LOADER
+# SAFE LOADER
 # =========================================================
 def load_excel(path, sheet):
     if not os.path.exists(path):
-        st.error(f"🚫 Required file not found:\n{path}")
+        st.error(f"File not found: {path}")
         st.stop()
-    return pd.read_excel(path, sheet_name=sheet, header=None).fillna("")
+    return pd.read_excel(path, sheet_name=sheet)
 
 # =========================================================
 # SIDEBAR
@@ -88,115 +53,103 @@ department = st.sidebar.selectbox(
     list(DEPARTMENT_CONFIG.keys())
 )
 
+view_mode = st.sidebar.radio(
+    "View Mode",
+    ["Interactive Spreadsheet", "Executive View"]
+)
+
 # =========================================================
 # LOAD DATA
 # =========================================================
 config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
+df_display = df.fillna("")
 
 # =========================================================
-# HTML TABLE RENDERER
+# EXECUTIVE INSIGHTS (STATIC & SAFE)
 # =========================================================
-def render_html_table(df, department):
-    html = f"""
-    <style>
-        .excel-container {{
-            max-height: 75vh;
-            overflow: auto;
-            border: 1px solid #bfbfbf;
-            background-color: #ffffff;
-        }}
+def render_insights(dept):
+    st.markdown("## 🧠 Executive Insights")
+    st.markdown("---")
 
-        table {{
-            border-collapse: collapse;
-            width: 100%;
-            font-size: 13px;
-            font-family: Arial, Helvetica, sans-serif;
-            color: #000000;
-        }}
+    if dept == "Gemology":
+        st.markdown("""
+### 📌 Program Structure
+- **Planned intake:** ~60–65 students  
+- **Spare buffer:** 2–3 additional instruments for critical items  
+- **Faculty ratio:** 1 faculty per 25 students (≈ **2.4 faculty**)
 
-        th, td {{
-            border: 1px solid #c0c0c0;
-            padding: 6px 8px;
-            vertical-align: top;
-            text-align: left;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }}
+### 💎 Cost Characteristics
+- High-value instruments (Microscopes, Optical tools) are **shared**
+- Per-student accessories are **low cost, high volume**
+- Clear separation between **per-student** and **shared resources**
 
-        tr.total-row td {{
-            background-color: {TOTAL_HIGHLIGHT_COLOR};
-            font-weight: 600;
-        }}
+### 🏛 Academic & Compliance Strength
+- Room sealing and lighting conditions explicitly specified
+- Equipment selection aligns with **international gemology standards**
 
-        tr.section-header td {{
-            background-color: {SECTION_HEADER_COLOR};
-            font-weight: 600;
-        }}
+**Board View:**  
+> Capital-efficient, compliance-driven expansion with long asset life.
+""")
 
-        tr.config-row td {{
-            background-color: {CONFIG_HIGHLIGHT_COLOR};
-            font-weight: 600;
-        }}
+    elif dept == "Manufacturing":
+        st.markdown("""
+### 📌 Financial Scale
+- **Total estimated cost:** ₹ **166.03 Lakhs**
+- Most capital-intensive department
 
-        tr:nth-child(even):not(.total-row):not(.section-header):not(.config-row) td {{
-            background-color: #fafafa;
-        }}
-    </style>
+### 🏗 Major Cost Drivers
+- Casting machines, rolling machines, furnaces
+- Dust collectors, polishing systems, safety infrastructure
 
-    <div class="excel-container">
-    <table>
-    """
+### ⚙ Utilisation Logic
+- Majority of machinery **shared across batches**
+- Capacity calculations clearly documented in remarks
 
-    for _, row in df.iterrows():
-        row_text = " ".join(str(cell) for cell in row).lower()
-        first_cell = str(row.iloc[0]).lower().strip()
+### ⚠ Risk Perspective
+- High capex dependency
+- Expansion beyond current capacity will require reinvestment
 
-        is_total = any(k in row_text for k in TOTAL_KEYWORDS)
-        is_section_header = sum(
-            1 for k in SECTION_HEADER_KEYWORDS if k in row_text
-        ) >= 4
+**Board View:**  
+> High capital requirement, but technically unavoidable and operationally justified.
+""")
 
-        is_config = (
-            department == "Gemology"
-            and any(first_cell.startswith(k) for k in GEMOLOGY_CONFIG_ROWS)
-        )
+    elif dept == "CAD":
+        st.markdown("""
+### 📌 Cost Nature
+- Lower capital expenditure compared to Manufacturing
+- Primary costs driven by **systems and software licenses**
 
-        row_class = ""
-        if is_config:
-            row_class = "config-row"
-        elif is_section_header:
-            row_class = "section-header"
-        elif is_total:
-            row_class = "total-row"
+### 🔁 Cost Behaviour
+- Hardware: replaceable
+- Software: recurring (license renewals, upgrades)
 
-        html += f'<tr class="{row_class}">'
-        for cell in row:
-            html += f"<td>{cell}</td>"
-        html += "</tr>"
+### 📈 Scalability
+- Easiest department to scale
+- Minimal infrastructure constraints
 
-    html += "</table></div>"
-    return html
+**Board View:**  
+> Most flexible and scalable vertical with controlled financial risk.
+""")
 
 # =========================================================
-# DISPLAY
+# RENDER
 # =========================================================
+if view_mode == "Executive View":
+    render_insights(department)
+    st.markdown("---")
+
 st.subheader(f"📄 Spreadsheet View — {department}")
-st.caption(
-    "Excel-like, read-only view with wrapped text, gridlines, "
-    "section headers, configuration blocks, and totals."
-)
+st.caption("Excel-like, read-only view. All figures visible. No assumptions.")
 
-components.html(
-    render_html_table(df, department),
-    height=800,
-    scrolling=True
+st.dataframe(
+    df_display,
+    use_container_width=True,
+    height=650
 )
 
 # =========================================================
 # FOOTER
 # =========================================================
 st.markdown("---")
-st.caption(
-    "© Board Excel Intelligence Platform — Spreadsheet Rendering Layer"
-)
+st.caption("© Board Excel Intelligence Platform — Academic Expansion Dashboard")
