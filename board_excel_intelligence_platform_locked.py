@@ -1,12 +1,10 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from pathlib import Path
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+import os
 
-# =====================================================
-# PAGE CONFIG
-# =====================================================
+# =========================================================
+# APP CONFIG
+# =========================================================
 st.set_page_config(
     page_title="Board Excel Intelligence Platform",
     layout="wide"
@@ -18,52 +16,51 @@ st.caption(
     "(Gemology, Manufacturing & CAD)"
 )
 
-# =====================================================
-# DATA SOURCE CONFIG (LOCKED – DO NOT GENERALISE)
-# =====================================================
-BASE_PATH = Path(__file__).parent
-
-DATA_SOURCES = {
+# =========================================================
+# LOCKED DEPARTMENT CONFIG (SINGLE SOURCE OF TRUTH)
+# =========================================================
+DEPARTMENT_CONFIG = {
     "Gemology": {
-        "file": BASE_PATH / "IIGJ_Gemology_Formatted.xlsx",
-        "sheet": "Budget",
-        "numeric_columns": [
-            "No of Students",
-            "Unit Cost (₹ Lakhs)",
-            "Total Cost (₹ Lakhs)"
-        ],
-        "primary_text_column": "Particulars"
+        "file": "IIGJ Mumbai - Academic Expansion Plan - Gemology Formatted.xlsx",
+        "sheet": "Department of Gemmology_Format"
     },
     "Manufacturing": {
-        "file": BASE_PATH / "IIGJ_Manufacturing_Formatted.xlsx",
-        "sheet": "Budget",
-        "numeric_columns": [
-            "Quantity",
-            "Unit Cost (₹ Lakhs)",
-            "Total Cost (₹ Lakhs)"
-        ],
-        "primary_text_column": "Particulars"
+        "file": "IIGJ - Academic Expansion Plan - Manufacturing Formatted.xlsx",
+        "sheet": "Formatted_Budget"
     },
     "CAD": {
-        "file": BASE_PATH / "IIGJ_CAD_Formatted.xlsx",
-        "sheet": "Budget",
-        "numeric_columns": [
-            "No of Students",
-            "Unit Cost (₹ Lakhs)",
-            "Total Cost (₹ Lakhs)"
-        ],
-        "primary_text_column": "Particulars"
+        "file": "IIGJ Mumbai - Academic expansion Plan_CAD Formatted.xlsx",
+        "sheet": "Formatted_Budget"
     }
 }
 
-# =====================================================
+# =========================================================
+# SAFE EXCEL LOADER (NO RED SCREENS)
+# =========================================================
+def load_excel_safely(path, sheet):
+    if not os.path.exists(path):
+        st.error(
+            f"🚫 Required board file not found:\n\n{path}\n\n"
+            "Please contact the administrator."
+        )
+        st.stop()
+    try:
+        return pd.read_excel(path, sheet_name=sheet)
+    except Exception as e:
+        st.error(
+            "🚫 Unable to read the configured Excel sheet.\n\n"
+            f"Details: {e}"
+        )
+        st.stop()
+
+# =========================================================
 # SIDEBAR – NAVIGATION
-# =====================================================
+# =========================================================
 st.sidebar.header("📁 Navigation")
 
-department = st.sidebar.selectbox(
+selected_department = st.sidebar.selectbox(
     "Select Department",
-    list(DATA_SOURCES.keys())
+    list(DEPARTMENT_CONFIG.keys())
 )
 
 view_mode = st.sidebar.radio(
@@ -71,11 +68,12 @@ view_mode = st.sidebar.radio(
     ["Interactive Spreadsheet", "Executive View"]
 )
 
-st.sidebar.header("🎨 Highlighting")
+st.sidebar.markdown("---")
+st.sidebar.subheader("🎨 Highlighting (Optional)")
 
 highlight_color = st.sidebar.color_picker(
     "Highlight numeric columns",
-    "#FFF3B0"
+    "#FFF3A0"
 )
 
 highlight_row = st.sidebar.number_input(
@@ -84,127 +82,80 @@ highlight_row = st.sidebar.number_input(
     step=1
 )
 
-# =====================================================
-# LOAD DATA (DETERMINISTIC & SAFE)
-# =====================================================
-config = DATA_SOURCES[department]
+# =========================================================
+# LOAD DATA
+# =========================================================
+config = DEPARTMENT_CONFIG[selected_department]
+df = load_excel_safely(config["file"], config["sheet"])
+df_display = df.fillna("")
 
-df = pd.read_excel(
-    config["file"],
-    sheet_name=config["sheet"]
-)
+# =========================================================
+# STYLING FUNCTION
+# =========================================================
+def style_dataframe(df):
+    def highlight_cells(val):
+        if isinstance(val, (int, float)):
+            return f"background-color: {highlight_color}; text-align: center;"
+        return "text-align: left;"
 
-# Keep blanks blank (no NaN display)
-df = df.replace({np.nan: ""})
+    styled = df.style.applymap(highlight_cells)
 
-numeric_columns = config["numeric_columns"]
-primary_text_column = config["primary_text_column"]
+    if highlight_row > 0 and highlight_row <= len(df):
+        styled = styled.apply(
+            lambda x: [
+                f"background-color: {highlight_color}; font-weight: bold;"
+                if i == highlight_row - 1 else ""
+                for i in range(len(df))
+            ],
+            axis=0
+        )
 
-# =====================================================
-# AGGRID CONFIGURATION
-# =====================================================
-gb = GridOptionsBuilder.from_dataframe(df)
+    return styled
 
-for col in df.columns:
-    is_numeric = col in numeric_columns
-    is_primary = col == primary_text_column
-
-    cell_style = {
-        "textAlign": "center" if is_numeric else "left",
-        "whiteSpace": "normal",
-        "lineHeight": "1.4",
-        "borderRight": "1px solid #3a3a3a",
-        "borderBottom": "1px solid #2a2a2a",
-    }
-
-    if is_primary:
-        cell_style["fontWeight"] = "600"
-
-    if is_numeric:
-        cell_style["backgroundColor"] = highlight_color
-
-    gb.configure_column(
-        col,
-        wrapText=True,
-        autoHeight=True,
-        cellStyle=cell_style
-    )
-
-# =====================================================
-# ROW HIGHLIGHTING (SAFE & OPTIONAL)
-# =====================================================
-if highlight_row > 0 and highlight_row <= len(df):
-    df["_row_flag"] = ""
-    df.loc[highlight_row - 1, "_row_flag"] = "highlight"
-
-    gb.configure_column("_row_flag", hide=True)
-
-    gb.configure_grid_options(
-        getRowStyle={
-            "styleConditions": [
-                {
-                    "condition": "params.data._row_flag === 'highlight'",
-                    "style": {
-                        "backgroundColor": "#E3F2FD",
-                        "fontWeight": "600"
-                    }
-                }
-            ]
-        }
-    )
-
-gb.configure_grid_options(
-    suppressColumnVirtualisation=True,
-    alwaysShowHorizontalScroll=True
-)
-
-grid_options = gb.build()
-
-# =====================================================
+# =========================================================
 # INTERACTIVE SPREADSHEET VIEW
-# =====================================================
+# =========================================================
 if view_mode == "Interactive Spreadsheet":
-    st.subheader(f"📄 {department} – Spreadsheet View")
+    st.subheader(f"📄 Spreadsheet View — {selected_department}")
+    st.caption("Excel-like, read-only view. No calculations or assumptions.")
 
-    AgGrid(
-        df,
-        gridOptions=grid_options,
-        height=560,
-        update_mode=GridUpdateMode.NO_UPDATE,
-        fit_columns_on_grid_load=False,
-        theme="streamlit"
+    st.dataframe(
+        df_display,
+        use_container_width=True,
+        height=650
     )
 
-# =====================================================
+# =========================================================
 # EXECUTIVE VIEW
-# =====================================================
+# =========================================================
 else:
-    st.subheader(f"📊 {department} – Executive Summary")
+    st.subheader(f"🧑‍💼 Executive View — {selected_department}")
+    st.caption("Board-friendly structured view with emphasis on figures.")
 
-    numeric_df = df[numeric_columns].apply(
-        pd.to_numeric, errors="coerce"
-    )
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
 
-    total_cost = numeric_df.sum().sum()
-    highest_cost = numeric_df.max().max()
+    if numeric_cols:
+        total_rows = len(df)
+        total_numeric_cols = len(numeric_cols)
+        numeric_sum = df[numeric_cols].sum().sum()
 
-    col1, col2 = st.columns(2)
-    col1.metric(
-        "Total Investment (₹ Lakhs)",
-        f"{round(total_cost, 2)}"
-    )
-    col2.metric(
-        "Highest Line Item (₹ Lakhs)",
-        f"{round(highest_cost, 2)}"
-    )
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Rows", total_rows)
+        col2.metric("Numeric Columns", total_numeric_cols)
+        col3.metric("Total Numeric Sum", f"{numeric_sum:,.2f}")
 
     st.markdown("---")
 
-    AgGrid(
-        df,
-        gridOptions=grid_options,
-        height=560,
-        update_mode=GridUpdateMode.NO_UPDATE,
-        fit_columns_on_grid_load=False,
-        theme="streamlit"
+    st.dataframe(
+        style_dataframe(df_display),
+        use_container_width=True,
+        height=650
     )
+
+# =========================================================
+# FOOTER
+# =========================================================
+st.markdown("---")
+st.caption(
+    "© Board Excel Intelligence Platform — Locked Academic Expansion Dashboard"
+)
