@@ -1,51 +1,16 @@
 import streamlit as st
 import pandas as pd
 import os
-from st_aggrid import AgGrid, GridOptionsBuilder
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # =========================================================
-# PAGE CONFIG
+# APP CONFIG
 # =========================================================
 st.set_page_config(
     page_title="Board Excel Intelligence Platform",
     layout="wide"
 )
 
-# =========================================================
-# GLOBAL CSS (GRID LINES + WRAP TEXT)
-# =========================================================
-st.markdown(
-    """
-    <style>
-    .ag-theme-balham-dark {
-        --ag-row-border-color: #3a3a3a;
-        --ag-cell-horizontal-border: solid #3a3a3a;
-        --ag-header-column-separator-display: block;
-        --ag-header-column-separator-color: #3a3a3a;
-    }
-
-    .ag-theme-balham-dark .ag-cell {
-        white-space: normal !important;
-        line-height: 1.4 !important;
-        border-right: 1px solid #3a3a3a !important;
-        border-bottom: 1px solid #3a3a3a !important;
-    }
-
-    .ag-theme-balham-dark .ag-header-cell {
-        white-space: normal !important;
-        line-height: 1.3 !important;
-        font-weight: 600;
-        border-right: 1px solid #3a3a3a !important;
-        border-bottom: 1px solid #3a3a3a !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# =========================================================
-# TITLE
-# =========================================================
 st.title("📊 Board Excel Intelligence Platform")
 st.caption(
     "Locked, board-ready dashboard for Academic Expansion Plans "
@@ -53,7 +18,7 @@ st.caption(
 )
 
 # =========================================================
-# FILE CONFIG (LOCKED)
+# LOCKED FILE CONFIG
 # =========================================================
 DEPARTMENT_CONFIG = {
     "Gemology": {
@@ -71,7 +36,7 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# COLUMN NAME OVERRIDES (BOARD SAFE)
+# PROFESSIONAL COLUMN NAME OVERRIDES
 # =========================================================
 COLUMN_NAME_OVERRIDES = {
     "Gemology": {
@@ -89,7 +54,7 @@ COLUMN_NAME_OVERRIDES = {
         "Unnamed: 3": "Details",
         "Unnamed: 4": "Quantity",
         "Unnamed: 5": "Cost per Item (in Lakhs)",
-        "Unnamed: 6": "According to Capacity Requirement (60 Students)",
+        "Unnamed: 6": "According to Capacity (60 Students)",
         "Unnamed: 7": "Cost-to-Company (in Lakhs)",
         "Unnamed: 8": "Remarks"
     },
@@ -106,11 +71,11 @@ COLUMN_NAME_OVERRIDES = {
 # =========================================================
 # SAFE EXCEL LOADER
 # =========================================================
-def load_excel(file_path, sheet):
-    if not os.path.exists(file_path):
-        st.error(f"Required file not found: {file_path}")
+def load_excel(path, sheet):
+    if not os.path.exists(path):
+        st.error(f"Required file missing: {path}")
         st.stop()
-    return pd.read_excel(file_path, sheet_name=sheet)
+    return pd.read_excel(path, sheet_name=sheet).fillna("")
 
 # =========================================================
 # SIDEBAR
@@ -124,82 +89,93 @@ department = st.sidebar.selectbox(
 
 view_mode = st.sidebar.radio(
     "View Mode",
-    ["Interactive Spreadsheet", "Executive View"]
+    ["Analysis View", "Executive View"]
 )
 
 # =========================================================
-# LOAD DATA
+# LOAD & PREP DATA
 # =========================================================
 config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
 
 # Rename columns safely
 df = df.rename(columns=COLUMN_NAME_OVERRIDES.get(department, {}))
-df = df.fillna("")
 
 # =========================================================
-# GRID OPTIONS (WRAP + GRIDLINES)
+# AGGRID BUILDER (CORE)
 # =========================================================
-gb = GridOptionsBuilder.from_dataframe(df)
+def render_grid(df, compact=False):
+    gb = GridOptionsBuilder.from_dataframe(df)
 
-gb.configure_default_column(
-    wrapText=True,
-    autoHeight=True,
-    resizable=True,
-    sortable=False,
-    filter=True
-)
+    gb.configure_default_column(
+        wrapText=True,
+        autoHeight=True,
+        resizable=True,
+        sortable=True,
+        filter=True,
+        cellStyle={
+            "borderRight": "1px solid #d0d0d0",
+            "borderBottom": "1px solid #d0d0d0",
+            "white-space": "normal",
+            "line-height": "1.4"
+        }
+    )
 
-gb.configure_grid_options(
-    domLayout="normal",
-    suppressRowHoverHighlight=False
-)
+    gb.configure_grid_options(
+        domLayout="normal",
+        suppressRowHoverHighlight=False
+    )
 
-grid_options = gb.build()
-
-# =========================================================
-# INTERACTIVE VIEW
-# =========================================================
-if view_mode == "Interactive Spreadsheet":
-    st.subheader(f"📄 Spreadsheet View — {department}")
-    st.caption("Excel-like, read-only view with wrapped text.")
+    if compact:
+        gb.configure_grid_options(rowHeight=32)
+    else:
+        gb.configure_grid_options(rowHeight=48)
 
     AgGrid(
         df,
-        gridOptions=grid_options,
-        theme="balham-dark",
-        height=700,
+        gridOptions=gb.build(),
+        theme="alpine",
+        update_mode=GridUpdateMode.NO_UPDATE,
+        allow_unsafe_jscode=True,
         fit_columns_on_grid_load=False,
-        allow_unsafe_jscode=True
+        height=650
     )
+
+# =========================================================
+# ANALYSIS VIEW
+# =========================================================
+if view_mode == "Analysis View":
+    st.subheader(f"📄 Analysis View — {department}")
+    st.caption("Analyst-focused view for fast inspection and verification.")
+
+    render_grid(df, compact=True)
 
 # =========================================================
 # EXECUTIVE VIEW
 # =========================================================
 else:
     st.subheader(f"🧑‍💼 Executive View — {department}")
-    st.caption("Board-ready view with wrapped text and clear grid lines.")
+    st.caption(
+        "Board-ready presentation with wrapped text, clear column separators "
+        "and comfortable spacing."
+    )
 
-    numeric_cols = df.select_dtypes(include=["number"]).columns
-    if len(numeric_cols) > 0:
+    # Executive metrics (safe & optional)
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    if numeric_cols:
         c1, c2, c3 = st.columns(3)
-        c1.metric("Total Rows", len(df))
+        c1.metric("Rows", len(df))
         c2.metric("Numeric Columns", len(numeric_cols))
-        c3.metric("Total Numeric Sum", f"{df[numeric_cols].sum().sum():,.2f}")
+        c3.metric("Total (All Numbers)", f"{df[numeric_cols].sum().sum():,.2f}")
 
     st.markdown("---")
 
-    AgGrid(
-        df,
-        gridOptions=grid_options,
-        theme="balham-dark",
-        height=700,
-        fit_columns_on_grid_load=False,
-        allow_unsafe_jscode=True
-    )
+    render_grid(df, compact=False)
 
 # =========================================================
 # FOOTER
 # =========================================================
 st.markdown("---")
-st.caption("© Board Excel Intelligence Platform — Locked Academic Expansion Dashboard")
+st.caption(
+    "© Board Excel Intelligence Platform — Locked Academic Expansion Dashboard"
+)
