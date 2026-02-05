@@ -41,8 +41,13 @@ DEPARTMENT_CONFIG = {
 TOTAL_KEYWORDS = ["total", "grand total", "total (approx.)"]
 
 SECTION_HEADER_KEYWORDS = [
-    "instrument name", "type", "specification",
-    "quantity", "unit price", "total in lakhs", "remarks"
+    "instrument name",
+    "type",
+    "specification",
+    "quantity",
+    "unit price",
+    "total in lakhs",
+    "remarks"
 ]
 
 GEMOLOGY_CONFIG_ROWS = [
@@ -61,20 +66,13 @@ SECTION_HEADER_COLOR = "#fff2cc"
 CONFIG_HIGHLIGHT_COLOR = "#e6f4ea"
 
 # =========================================================
-# SAFE EXCEL LOADER
+# SAFE EXCEL LOADER (DO NOT TOUCH)
 # =========================================================
 def load_excel(path, sheet):
     if not os.path.exists(path):
         st.error(f"🚫 Required file not found:\n{path}")
         st.stop()
     return pd.read_excel(path, sheet_name=sheet, header=None).fillna("")
-
-def is_number(val):
-    try:
-        float(val)
-        return True
-    except:
-        return False
 
 # =========================================================
 # SIDEBAR
@@ -93,7 +91,7 @@ config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
 
 # =========================================================
-# HTML TABLE RENDERER (LOCKED STRUCTURE)
+# HTML TABLE RENDERER (FINAL – DO NOT CHANGE)
 # =========================================================
 def render_html_table(df, department):
     html = f"""
@@ -117,13 +115,9 @@ def render_html_table(df, department):
             border: 1px solid #c0c0c0;
             padding: 6px 8px;
             vertical-align: top;
+            text-align: left;
             white-space: pre-wrap;
             word-wrap: break-word;
-        }}
-
-        td.numeric-cell {{
-            text-align: center;
-            white-space: nowrap;
         }}
 
         tr.total-row td {{
@@ -171,20 +165,19 @@ def render_html_table(df, department):
 
         html += f'<tr class="{row_class}">'
         for cell in row:
-            cell_class = "numeric-cell" if is_number(cell) else ""
-            html += f'<td class="{cell_class}">{cell}</td>'
+            html += f"<td>{cell}</td>"
         html += "</tr>"
 
     html += "</table></div>"
     return html
 
 # =========================================================
-# DISPLAY TABLE
+# TABLE DISPLAY (LOCKED)
 # =========================================================
 st.subheader(f"📄 Spreadsheet View — {department}")
 st.caption(
-    "Excel-like, read-only view with wrapped text, gridlines, "
-    "section headers, configuration blocks, totals, and centered numerics."
+    "Excel-like, read-only view with wrapped text, full gridlines, "
+    "section headers, configuration blocks, and totals."
 )
 
 components.html(
@@ -194,39 +187,111 @@ components.html(
 )
 
 # =========================================================
-# EXECUTIVE INSIGHTS (STATIC)
+# EXECUTIVE INSIGHTS (STATIC, SAFE, SEPARATE)
 # =========================================================
 st.markdown("---")
-st.subheader("🧠 Executive Insights")
+st.subheader("📊 Executive Insights (Summary)")
+st.caption("Strategic overview based on approved expansion plans.")
+
+INSIGHTS_DATA = {
+    "Gemology": {
+        "Per Student Equipment": 48.2,
+        "Shared Equipment": 72.4,
+        "Consumables": 18.6,
+        "Infrastructure": 12.8
+    },
+    "Manufacturing": {
+        "Heavy Machinery": 92.5,
+        "Shared Equipment": 48.3,
+        "Per Student Equipment": 21.2,
+        "Consumables": 4.0
+    },
+    "CAD": {
+        "Systems & Licenses": 38.0,
+        "Per Student Hardware": 22.0,
+        "Shared Infrastructure": 10.0
+    }
+}
+
+DEPARTMENT_TOTALS = {
+    "Gemology": 152.0,
+    "Manufacturing": 166.0,
+    "CAD": 70.0
+}
+
+# ---------------------------------------------------------
+# GRAPH 1 — COST COMPOSITION
+# ---------------------------------------------------------
+st.markdown("### Cost Composition")
+
+comp_df = (
+    pd.DataFrame.from_dict(
+        INSIGHTS_DATA[department],
+        orient="index",
+        columns=["Cost (₹ Lakhs)"]
+    )
+    .reset_index()
+    .rename(columns={"index": "Category"})
+)
+
+st.bar_chart(comp_df.set_index("Category"), height=280)
+
+# ---------------------------------------------------------
+# GRAPH 2 — SHARED VS PER STUDENT
+# ---------------------------------------------------------
+if department in ["Gemology", "Manufacturing"]:
+    st.markdown("### Shared vs Per-Student Cost Split")
+
+    shared = sum(v for k, v in INSIGHTS_DATA[department].items() if "shared" in k.lower())
+    per_student = sum(v for k, v in INSIGHTS_DATA[department].items() if "student" in k.lower())
+
+    split_df = pd.DataFrame({
+        "Category": ["Shared Costs", "Per-Student Costs"],
+        "Cost (₹ Lakhs)": [shared, per_student]
+    })
+
+    st.bar_chart(split_df.set_index("Category"), height=240)
+
+# ---------------------------------------------------------
+# GRAPH 3 — DEPARTMENT COMPARISON
+# ---------------------------------------------------------
+st.markdown("### Department-wise Total Investment")
+
+dept_df = pd.DataFrame({
+    "Department": list(DEPARTMENT_TOTALS.keys()),
+    "Total Cost (₹ Lakhs)": list(DEPARTMENT_TOTALS.values())
+})
+
+st.bar_chart(dept_df.set_index("Department"), height=260)
+
+# ---------------------------------------------------------
+# EXECUTIVE NOTES (STATIC TEXT)
+# ---------------------------------------------------------
+st.markdown("### Key Observations")
 
 if department == "Gemology":
     st.markdown("""
-• Structured for ~65 students with spare capacity  
-• Hybrid per-student + shared precision instruments  
-• Security-first lab design (sealed rooms)  
-• Faculty ratio aligned to accreditation norms  
+- Balanced investment between **shared lab infrastructure** and **per-student instruments**.
+- Emphasis on grading accuracy, microscopy, and controlled environments.
+- Costs scale moderately with intake due to shared usage models.
 """)
 
 elif department == "Manufacturing":
     st.markdown("""
-• Capital-intensive shared machinery model  
-• Equipment sized for 60-student throughput  
-• Consumables pooled to reduce redundancy  
-• Clear separation of per-student vs shared costs  
+- Capital-heavy department driven by **core machinery**.
+- High shared utilization reduces long-term marginal cost per student.
+- Infrastructure investment supports multi-batch scalability.
 """)
 
 elif department == "CAD":
     st.markdown("""
-• Digital-first infrastructure  
-• Lower physical capex than labs/workshops  
-• Linear scalability with student growth  
-• Shared backend compute resources  
+- Technology-centric expenditure dominated by licenses and systems.
+- Predictable per-student scaling.
+- Lowest infrastructure risk among departments.
 """)
 
 # =========================================================
 # FOOTER
 # =========================================================
 st.markdown("---")
-st.caption(
-    "© Board Excel Intelligence Platform — Spreadsheet Rendering Layer + Executive Intelligence Layer"
-)
+st.caption("© Board Excel Intelligence Platform — Executive Intelligence Layer")
