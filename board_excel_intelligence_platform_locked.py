@@ -17,24 +17,6 @@ st.caption(
 )
 
 # =========================================================
-# GLOBAL CSS (TEXT WRAP + CLEAN TABLE)
-# =========================================================
-st.markdown("""
-<style>
-    td {
-        white-space: normal !important;
-        word-wrap: break-word;
-        vertical-align: top;
-    }
-    th {
-        white-space: normal !important;
-        word-wrap: break-word;
-        text-align: center;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# =========================================================
 # LOCKED DEPARTMENT CONFIG
 # =========================================================
 DEPARTMENT_CONFIG = {
@@ -79,10 +61,7 @@ view_mode = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎨 Highlighting (Optional)")
 
-enable_highlight = st.sidebar.checkbox(
-    "Enable highlighting",
-    value=False
-)
+enable_highlight = st.sidebar.checkbox("Enable highlighting", value=False)
 
 highlight_color = st.sidebar.color_picker(
     "Highlight color",
@@ -105,10 +84,10 @@ df = load_excel_safely(config["file"], config["sheet"])
 df_display = df.fillna("")
 
 # =========================================================
-# STYLING FUNCTION (WRAP + ALIGNMENT)
+# STYLING FUNCTION (WRAP GUARANTEED)
 # =========================================================
 def style_dataframe(df):
-    def style_cell(val):
+    def cell_style(val):
         if isinstance(val, (int, float)):
             base = "text-align: center;"
             if enable_highlight:
@@ -118,17 +97,18 @@ def style_dataframe(df):
 
     styled = (
         df.style
-        .applymap(style_cell)
+        .applymap(cell_style)
         .set_properties(**{
             "white-space": "normal",
             "word-wrap": "break-word",
-            "vertical-align": "top"
+            "vertical-align": "top",
+            "max-width": "300px"
         })
     )
 
     if enable_highlight and 0 < highlight_row <= len(df):
         styled = styled.apply(
-            lambda x: [
+            lambda _: [
                 f"background-color: {highlight_color}; font-weight: bold;"
                 if i == highlight_row - 1 else ""
                 for i in range(len(df))
@@ -139,11 +119,11 @@ def style_dataframe(df):
     return styled
 
 # =========================================================
-# INTERACTIVE VIEW
+# INTERACTIVE VIEW (FAST, NO WRAP)
 # =========================================================
 if view_mode == "Interactive Spreadsheet":
     st.subheader(f"📄 Spreadsheet View — {selected_department}")
-    st.caption("Excel-like, read-only view. No calculations or assumptions.")
+    st.caption("Excel-like, scrollable view (no wrapping).")
 
     st.dataframe(
         df_display,
@@ -156,7 +136,7 @@ if view_mode == "Interactive Spreadsheet":
 # =========================================================
 else:
     st.subheader(f"🧑‍💼 Executive View — {selected_department}")
-    st.caption("Board-friendly structured view with wrapped text and alignment.")
+    st.caption("Board-ready view with wrapped text and readable layout.")
 
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
 
@@ -168,11 +148,8 @@ else:
 
     st.markdown("---")
 
-    st.dataframe(
-        style_dataframe(df_display),
-        use_container_width=True,
-        height=650
-    )
+    # 🔑 THIS IS THE KEY CHANGE
+    st.table(style_dataframe(df_display))
 
 # =========================================================
 # FOOTER
