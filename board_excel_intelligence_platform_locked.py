@@ -69,6 +69,13 @@ def load_excel(path, sheet):
         st.stop()
     return pd.read_excel(path, sheet_name=sheet, header=None).fillna("")
 
+def is_number(val):
+    try:
+        float(val)
+        return True
+    except:
+        return False
+
 # =========================================================
 # SIDEBAR
 # =========================================================
@@ -86,7 +93,7 @@ config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
 
 # =========================================================
-# HTML TABLE RENDERER (LOCKED — DO NOT MODIFY)
+# HTML TABLE RENDERER (LOCKED STRUCTURE)
 # =========================================================
 def render_html_table(df, department):
     html = f"""
@@ -110,9 +117,13 @@ def render_html_table(df, department):
             border: 1px solid #c0c0c0;
             padding: 6px 8px;
             vertical-align: top;
-            text-align: left;
             white-space: pre-wrap;
             word-wrap: break-word;
+        }}
+
+        td.numeric-cell {{
+            text-align: center;
+            white-space: nowrap;
         }}
 
         tr.total-row td {{
@@ -160,7 +171,8 @@ def render_html_table(df, department):
 
         html += f'<tr class="{row_class}">'
         for cell in row:
-            html += f"<td>{cell}</td>"
+            cell_class = "numeric-cell" if is_number(cell) else ""
+            html += f'<td class="{cell_class}">{cell}</td>'
         html += "</tr>"
 
     html += "</table></div>"
@@ -172,7 +184,7 @@ def render_html_table(df, department):
 st.subheader(f"📄 Spreadsheet View — {department}")
 st.caption(
     "Excel-like, read-only view with wrapped text, gridlines, "
-    "section headers, configuration blocks, and totals."
+    "section headers, configuration blocks, totals, and centered numerics."
 )
 
 components.html(
@@ -182,39 +194,33 @@ components.html(
 )
 
 # =========================================================
-# EXECUTIVE INSIGHTS (STATIC — NOT LINKED TO TABLE)
+# EXECUTIVE INSIGHTS (STATIC)
 # =========================================================
 st.markdown("---")
 st.subheader("🧠 Executive Insights")
 
 if department == "Gemology":
     st.markdown("""
-### 🟦 Gemology — Executive Insights
-- The Gemology expansion is structured around a **class strength of approximately 65 students**, including **2–3 spare units** to ensure operational continuity.
-- A **hybrid provisioning model** is followed, combining **per-student instruments** with **shared high-value precision equipment**.
-- Infrastructure planning emphasizes **security and contamination control**, including sealed rooms and elimination of hidden cavities.
-- Faculty deployment follows a **1:25 faculty-to-student ratio**, aligned with academic and accreditation norms.
-- High-cost gemological instruments are **shared resources**, reducing per-student capital cost while preserving instructional quality.
+• Structured for ~65 students with spare capacity  
+• Hybrid per-student + shared precision instruments  
+• Security-first lab design (sealed rooms)  
+• Faculty ratio aligned to accreditation norms  
 """)
 
 elif department == "Manufacturing":
     st.markdown("""
-### 🟧 Manufacturing — Executive Insights
-- The Manufacturing department has a **capital-intensive setup**, driven by casting, machining, polishing, and finishing equipment.
-- Several high-value machines are **shared across the entire student cohort**, optimizing capital utilization.
-- The cost structure clearly distinguishes **per-student tools** from **shared workshop infrastructure**.
-- Equipment capacity is planned specifically for **60 students**, ensuring scalability without redundancy.
-- Consumables and auxiliary tools are provisioned centrally to support uninterrupted workshop operations.
+• Capital-intensive shared machinery model  
+• Equipment sized for 60-student throughput  
+• Consumables pooled to reduce redundancy  
+• Clear separation of per-student vs shared costs  
 """)
 
 elif department == "CAD":
     st.markdown("""
-### 🟩 CAD — Executive Insights
-- The CAD expansion prioritizes **digital infrastructure**, resulting in a lower physical capital footprint.
-- Primary cost drivers include **software licensing, high-performance workstations, and display systems**.
-- Resources are largely **allocated per student**, reflecting individualized usage patterns.
-- Shared infrastructure requirements are limited to **servers, storage, and networking systems**.
-- The model supports **linear scalability**, with incremental costs tied directly to student intake growth.
+• Digital-first infrastructure  
+• Lower physical capex than labs/workshops  
+• Linear scalability with student growth  
+• Shared backend compute resources  
 """)
 
 # =========================================================
