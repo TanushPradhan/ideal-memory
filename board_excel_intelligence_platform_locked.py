@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 
 # =========================================================
 # APP CONFIG
@@ -17,7 +18,7 @@ st.caption(
 )
 
 # =========================================================
-# LOCKED DEPARTMENT CONFIG
+# LOCKED FILE CONFIG
 # =========================================================
 DEPARTMENT_CONFIG = {
     "Gemology": {
@@ -35,7 +36,7 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# COLUMN NAME OVERRIDES
+# COLUMN NAME OVERRIDES (BOARD SAFE)
 # =========================================================
 COLUMN_NAME_OVERRIDES = {
     "Gemology": {
@@ -53,7 +54,7 @@ COLUMN_NAME_OVERRIDES = {
         "Unnamed: 3": "Details",
         "Unnamed: 4": "Quantity",
         "Unnamed: 5": "Cost per Item (in Lakhs)",
-        "Unnamed: 6": "Capacity Requirement (60 Students)",
+        "Unnamed: 6": "According to Capacity (60 Students)",
         "Unnamed: 7": "Cost-to-Company (in Lakhs)",
         "Unnamed: 8": "Remarks"
     },
@@ -68,24 +69,20 @@ COLUMN_NAME_OVERRIDES = {
 }
 
 # =========================================================
-# SAFE EXCEL LOADER
+# SAFE LOAD
 # =========================================================
-def load_excel_safely(path, sheet):
-    if not os.path.exists(path):
-        st.error(f"🚫 Required board file not found:\n\n{path}")
+def load_excel(file, sheet):
+    if not os.path.exists(file):
+        st.error(f"Required file missing: {file}")
         st.stop()
-    try:
-        return pd.read_excel(path, sheet_name=sheet)
-    except Exception as e:
-        st.error(f"🚫 Unable to read Excel file.\n\n{e}")
-        st.stop()
+    return pd.read_excel(file, sheet_name=sheet)
 
 # =========================================================
 # SIDEBAR
 # =========================================================
 st.sidebar.header("📁 Navigation")
 
-selected_department = st.sidebar.selectbox(
+department = st.sidebar.selectbox(
     "Select Department",
     list(DEPARTMENT_CONFIG.keys())
 )
@@ -95,80 +92,76 @@ view_mode = st.sidebar.radio(
     ["Interactive Spreadsheet", "Executive View"]
 )
 
-# =========================================================
-# LOAD DATA
-# =========================================================
-config = DEPARTMENT_CONFIG[selected_department]
-df = load_excel_safely(config["file"], config["sheet"])
+st.sidebar.markdown("---")
+st.sidebar.subheader("🎨 Highlighting (Optional)")
 
-df = df.rename(columns=COLUMN_NAME_OVERRIDES.get(selected_department, {}))
+enable_highlight = st.sidebar.checkbox("Enable highlighting", False)
+highlight_color = st.sidebar.color_picker("Highlight color", "#FFF3A0")
+highlight_row = st.sidebar.number_input(
+    "Highlight row (1-based, optional)",
+    min_value=0,
+    step=1
+)
+
+# =========================================================
+# LOAD + CLEAN DATA
+# =========================================================
+config = DEPARTMENT_CONFIG[department]
+df = load_excel(config["file"], config["sheet"])
 df = df.fillna("")
 
-# =========================================================
-# INTERACTIVE VIEW (NO WRAP – EXPECTED)
-# =========================================================
-if view_mode == "Interactive Spreadsheet":
-    st.subheader(f"📄 Spreadsheet View — {selected_department}")
-    st.caption("Excel-like, read-only view (fast scrolling).")
-
-    st.dataframe(
-        df,
-        use_container_width=True,
-        height=650
-    )
+# Apply column renaming
+df = df.rename(columns=COLUMN_NAME_OVERRIDES.get(department, {}))
 
 # =========================================================
-# EXECUTIVE VIEW (FULL TEXT WRAP – GUARANTEED)
+# AGGRID CONFIG — TRUE WRAP
 # =========================================================
-else:
-    st.subheader(f"🧑‍💼 Executive View — {selected_department}")
-    st.caption("Board-ready view with fully wrapped text.")
+gb = GridOptionsBuilder.from_dataframe(df)
 
-    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-    if numeric_cols:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Rows", len(df))
-        c2.metric("Numeric Columns", len(numeric_cols))
-        c3.metric("Total Numeric Sum", f"{df[numeric_cols].sum().sum():,.2f}")
+# Default column behavior
+gb.configure_default_column(
+    wrapText=True,
+    autoHeight=True,
+    resizable=True,
+    filter=True,
+    sortable=True,
+    cellStyle={
+        "white-space": "normal",
+        "line-height": "1.4",
+        "word-break": "break-word"
+    }
+)
 
-    st.markdown("---")
-
-    # =======================
-    # HTML TABLE (WRAPPED)
-    # =======================
-    html_table = df.to_html(
-        index=True,
-        escape=False
-    )
-
-    st.markdown(
-        f"""
-        <div style="overflow-x:auto;">
-            <style>
-                table {{
-                    width: 100%;
-                    border-collapse: collapse;
+# Optional row highlighting
+if enable_highlight and highlight_row > 0:
+    js = JsCode(f"""
+        function(params) {{
+            if (params.node.rowIndex === {highlight_row - 1}) {{
+                return {{
+                    backgroundColor: '{highlight_color}',
+                    fontWeight: 'bold'
                 }}
-                th, td {{
-                    border: 1px solid #333;
-                    padding: 8px;
-                    vertical-align: top;
-                    white-space: normal !important;
-                    word-wrap: break-word;
-                    text-align: left;
-                    font-size: 13px;
-                }}
-                th {{
-                    background-color: #1f2933;
-                    color: white;
-                    text-align: center;
-                }}
-            </style>
-            {html_table}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+            }}
+        }}
+    """)
+    gb.configure_grid_options(getRowStyle=js)
+
+grid_options = gb.build()
+
+# =========================================================
+# RENDER
+# =========================================================
+st.subheader(f"📄 Spreadsheet View — {department}")
+st.caption("Excel-like, read-only view with wrapped text and full visibility.")
+
+AgGrid(
+    df,
+    gridOptions=grid_options,
+    theme="balham-dark",
+    height=700,
+    fit_columns_on_grid_load=False,
+    allow_unsafe_jscode=True
+)
 
 # =========================================================
 # FOOTER
