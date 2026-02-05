@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
+import streamlit.components.v1 as components
 
 # =========================================================
 # APP CONFIG
@@ -18,87 +18,65 @@ st.caption(
 )
 
 # =========================================================
-# FILE CONFIG
+# DEPARTMENT CONFIG
 # =========================================================
 DEPARTMENT_CONFIG = {
     "Gemology": {
         "file": "IIGJ Mumbai - Academic Expansion Plan - Gemology Formatted.xlsx",
-        "sheet": "Department of Gemmology_Format"
+        "sheet": 0
     },
     "Manufacturing": {
         "file": "IIGJ - Academic Expansion Plan - Manufacturing Formatted.xlsx",
-        "sheet": "Formated_Budget"
+        "sheet": 0
     },
     "CAD": {
         "file": "IIGJ Mumbai - Academic expansion Plan_CAD Formatted.xlsx",
-        "sheet": "Formatted_Budget"
+        "sheet": 0
     }
 }
 
 # =========================================================
-# COLUMN NAME OVERRIDES (APPROVED)
+# HIGHLIGHT RULES
 # =========================================================
-COLUMN_NAME_OVERRIDES = {
-    "Gemology": {
-        "Unnamed: 1": "Instrument Name",
-        "Unnamed: 2": "Type",
-        "Unnamed: 3": "Specification",
-        "Unnamed: 4": "Quantity",
-        "Unnamed: 5": "Unit Price (In Lakhs)",
-        "Unnamed: 6": "Total in Lakhs",
-        "Unnamed: 7": "Remarks"
-    },
-    "Manufacturing": {
-        "Unnamed: 1": "Particulars",
-        "Unnamed: 2": "Department",
-        "Unnamed: 3": "Details",
-        "Unnamed: 4": "Quantity",
-        "Unnamed: 5": "Cost per Item (In Lakhs)",
-        "Unnamed: 6": "According to Capacity",
-        "Unnamed: 7": "Cost-to-Company (In Lakhs)",
-        "Unnamed: 8": "Remarks"
-    },
-    "CAD": {
-        "Unnamed: 1": "Particulars",
-        "Unnamed: 2": "Specification",
-        "Unnamed: 3": "Quantity",
-        "Unnamed: 4": "Cost per Item",
-        "Unnamed: 5": "Total Cost",
-        "Unnamed: 6": "Remarks"
-    }
-}
+TOTAL_KEYWORDS = [
+    "total",
+    "grand total",
+    "total (approx.)"
+]
 
-# =========================================================
-# HIGHLIGHT RULES (APPROVED)
-# =========================================================
+SECTION_HEADER_KEYWORDS = [
+    "instrument name",
+    "type",
+    "specification",
+    "quantity",
+    "unit price",
+    "total in lakhs",
+    "remarks"
+]
+
 GEMOLOGY_CONFIG_ROWS = [
     "number of students",
-    "class requirements",
+    "class requirements with spare",
     "singular instruments",
     "instruments per student",
-    "shared instruments",
+    "shared instruments required",
     "room preparation",
     "student per table",
     "faculty required"
 ]
 
-SECTION_HEADER_KEYWORDS = [
-    "instrument name",
-    "specification",
-    "quantity",
-    "unit price",
-    "total",
-    "remarks"
-]
+TOTAL_HIGHLIGHT_COLOR = "#fff4b8"
+SECTION_HEADER_COLOR = "#fff2cc"
+CONFIG_HIGHLIGHT_COLOR = "#e6f4ea"
 
 # =========================================================
-# SAFE LOADER
+# SAFE EXCEL LOADER
 # =========================================================
 def load_excel(path, sheet):
     if not os.path.exists(path):
-        st.error(f"File not found: {path}")
+        st.error(f"🚫 Required file not found:\n{path}")
         st.stop()
-    return pd.read_excel(path, sheet_name=sheet).fillna("")
+    return pd.read_excel(path, sheet_name=sheet, header=None).fillna("")
 
 # =========================================================
 # SIDEBAR
@@ -113,77 +91,112 @@ department = st.sidebar.selectbox(
 # =========================================================
 # LOAD DATA
 # =========================================================
-cfg = DEPARTMENT_CONFIG[department]
-df = load_excel(cfg["file"], cfg["sheet"])
-
-# Apply column name overrides
-df.rename(columns=COLUMN_NAME_OVERRIDES.get(department, {}), inplace=True)
+config = DEPARTMENT_CONFIG[department]
+df = load_excel(config["file"], config["sheet"])
 
 # =========================================================
-# AG GRID WITH STATIC HIGHLIGHTS
+# HTML TABLE RENDERER
 # =========================================================
-highlight_js = JsCode("""
-function(params) {
-    const rowText = Object.values(params.data)
-        .join(" ")
-        .toLowerCase();
+def render_html_table(df, department):
+    html = f"""
+    <style>
+        .excel-container {{
+            max-height: 75vh;
+            overflow: auto;
+            border: 1px solid #bfbfbf;
+            background-color: #ffffff;
+        }}
 
-    const firstCell = Object.values(params.data)[0].toLowerCase();
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 13px;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #000000;
+        }}
 
-    if (
-        ["instrument name", "specification", "quantity", "unit price", "total"]
-            .every(k => rowText.includes(k))
-    ) {
-        return { backgroundColor: "#fff2cc", fontWeight: "bold" };
-    }
+        th, td {{
+            border: 1px solid #c0c0c0;
+            padding: 6px 8px;
+            vertical-align: top;
+            text-align: left;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }}
 
-    if (
-        ["total", "grand total"].some(k => rowText.includes(k))
-    ) {
-        return { backgroundColor: "#fff4b8", fontWeight: "bold" };
-    }
+        tr.total-row td {{
+            background-color: {TOTAL_HIGHLIGHT_COLOR};
+            font-weight: 600;
+        }}
 
-    if (
-        params.context.department === "Gemology" &&
-        ["number of students", "faculty required", "shared instruments"]
-            .some(k => firstCell.includes(k))
-    ) {
-        return { backgroundColor: "#e6f4ea", fontWeight: "bold" };
-    }
+        tr.section-header td {{
+            background-color: {SECTION_HEADER_COLOR};
+            font-weight: 600;
+        }}
 
-    return null;
-}
-""")
+        tr.config-row td {{
+            background-color: {CONFIG_HIGHLIGHT_COLOR};
+            font-weight: 600;
+        }}
 
-gb = GridOptionsBuilder.from_dataframe(df)
-gb.configure_default_column(
-    wrapText=True,
-    autoHeight=True,
-    resizable=True,
-    cellStyle=highlight_js
-)
+        tr:nth-child(even):not(.total-row):not(.section-header):not(.config-row) td {{
+            background-color: #fafafa;
+        }}
+    </style>
 
-gb.configure_grid_options(
-    context={"department": department},
-    rowHeight=38
-)
+    <div class="excel-container">
+    <table>
+    """
+
+    for _, row in df.iterrows():
+        row_text = " ".join(str(cell) for cell in row).lower()
+        first_cell = str(row.iloc[0]).lower().strip()
+
+        is_total = any(k in row_text for k in TOTAL_KEYWORDS)
+        is_section_header = sum(
+            1 for k in SECTION_HEADER_KEYWORDS if k in row_text
+        ) >= 4
+
+        is_config = (
+            department == "Gemology"
+            and any(first_cell.startswith(k) for k in GEMOLOGY_CONFIG_ROWS)
+        )
+
+        row_class = ""
+        if is_config:
+            row_class = "config-row"
+        elif is_section_header:
+            row_class = "section-header"
+        elif is_total:
+            row_class = "total-row"
+
+        html += f'<tr class="{row_class}">'
+        for cell in row:
+            html += f"<td>{cell}</td>"
+        html += "</tr>"
+
+    html += "</table></div>"
+    return html
 
 # =========================================================
-# RENDER
+# DISPLAY
 # =========================================================
 st.subheader(f"📄 Spreadsheet View — {department}")
-st.caption("Excel-like view with approved highlights and clean headers.")
+st.caption(
+    "Excel-like, read-only view with wrapped text, gridlines, "
+    "section headers, configuration blocks, and totals."
+)
 
-AgGrid(
-    df,
-    gridOptions=gb.build(),
-    height=650,
-    theme="alpine",
-    allow_unsafe_jscode=True
+components.html(
+    render_html_table(df, department),
+    height=800,
+    scrolling=True
 )
 
 # =========================================================
 # FOOTER
 # =========================================================
 st.markdown("---")
-st.caption("© Board Excel Intelligence Platform — Locked Rendering Layer")
+st.caption(
+    "© Board Excel Intelligence Platform — Spreadsheet Rendering Layer"
+)
