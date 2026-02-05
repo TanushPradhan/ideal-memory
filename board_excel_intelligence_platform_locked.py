@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 # =========================================================
 # APP CONFIG
@@ -63,10 +64,44 @@ view_mode = st.sidebar.radio(
 # =========================================================
 config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
-df_display = df.fillna("")
+df = df.fillna("")
 
 # =========================================================
-# EXECUTIVE INSIGHTS (STATIC & SAFE)
+# AG GRID CONFIG (THIS IS THE MAGIC)
+# =========================================================
+def render_excel_grid(dataframe):
+    gb = GridOptionsBuilder.from_dataframe(dataframe)
+
+    gb.configure_default_column(
+        resizable=True,
+        sortable=False,
+        filter=True,
+        wrapText=True,
+        autoHeight=True,
+        cellStyle={
+            "white-space": "normal",
+            "line-height": "1.4",
+            "border": "1px solid #d0d0d0"
+        }
+    )
+
+    gb.configure_grid_options(
+        domLayout="normal",
+        suppressRowHoverHighlight=False,
+        rowHeight=38
+    )
+
+    AgGrid(
+        dataframe,
+        gridOptions=gb.build(),
+        fit_columns_on_grid_load=False,
+        height=650,
+        theme="alpine",
+        allow_unsafe_jscode=True
+    )
+
+# =========================================================
+# EXECUTIVE INSIGHTS
 # =========================================================
 def render_insights(dept):
     st.markdown("## 🧠 Executive Insights")
@@ -74,62 +109,25 @@ def render_insights(dept):
 
     if dept == "Gemology":
         st.markdown("""
-### 📌 Program Structure
-- **Planned intake:** ~60–65 students  
-- **Spare buffer:** 2–3 additional instruments for critical items  
-- **Faculty ratio:** 1 faculty per 25 students (≈ **2.4 faculty**)
-
-### 💎 Cost Characteristics
-- High-value instruments (Microscopes, Optical tools) are **shared**
-- Per-student accessories are **low cost, high volume**
-- Clear separation between **per-student** and **shared resources**
-
-### 🏛 Academic & Compliance Strength
-- Room sealing and lighting conditions explicitly specified
-- Equipment selection aligns with **international gemology standards**
-
-**Board View:**  
-> Capital-efficient, compliance-driven expansion with long asset life.
+- **Student capacity:** ~60–65 students
+- **Shared instruments** reduce per-student cost
+- **High compliance focus** (room sealing, lighting, lab standards)
+- **Capital efficient** with long asset life
 """)
 
     elif dept == "Manufacturing":
         st.markdown("""
-### 📌 Financial Scale
-- **Total estimated cost:** ₹ **166.03 Lakhs**
-- Most capital-intensive department
-
-### 🏗 Major Cost Drivers
-- Casting machines, rolling machines, furnaces
-- Dust collectors, polishing systems, safety infrastructure
-
-### ⚙ Utilisation Logic
-- Majority of machinery **shared across batches**
-- Capacity calculations clearly documented in remarks
-
-### ⚠ Risk Perspective
-- High capex dependency
-- Expansion beyond current capacity will require reinvestment
-
-**Board View:**  
-> High capital requirement, but technically unavoidable and operationally justified.
+- **Total estimated capex:** ₹166+ Lakhs
+- Heavy machinery dominates cost structure
+- Shared capacity logic improves utilization
+- High operational dependency
 """)
 
     elif dept == "CAD":
         st.markdown("""
-### 📌 Cost Nature
-- Lower capital expenditure compared to Manufacturing
-- Primary costs driven by **systems and software licenses**
-
-### 🔁 Cost Behaviour
-- Hardware: replaceable
-- Software: recurring (license renewals, upgrades)
-
-### 📈 Scalability
-- Easiest department to scale
-- Minimal infrastructure constraints
-
-**Board View:**  
-> Most flexible and scalable vertical with controlled financial risk.
+- Lowest infrastructure cost
+- Software-driven recurring expenses
+- Highest scalability potential
 """)
 
 # =========================================================
@@ -140,16 +138,12 @@ if view_mode == "Executive View":
     st.markdown("---")
 
 st.subheader(f"📄 Spreadsheet View — {department}")
-st.caption("Excel-like, read-only view. All figures visible. No assumptions.")
+st.caption("Excel-like, read-only view with wrapped text and full gridlines.")
 
-st.dataframe(
-    df_display,
-    use_container_width=True,
-    height=650
-)
+render_excel_grid(df)
 
 # =========================================================
 # FOOTER
 # =========================================================
 st.markdown("---")
-st.caption("© Board Excel Intelligence Platform — Academic Expansion Dashboard")
+st.caption("© Board Excel Intelligence Platform — Spreadsheet Rendering Layer")
