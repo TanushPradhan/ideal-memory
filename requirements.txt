@@ -1,0 +1,5 @@
+streamlit>=1.32
+pandas>=1.5
+numpy<2
+streamlit-aggrid>=0.3.4
+openpyxl
