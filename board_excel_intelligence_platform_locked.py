@@ -17,7 +17,25 @@ st.caption(
 )
 
 # =========================================================
-# LOCKED DEPARTMENT CONFIG (SINGLE SOURCE OF TRUTH)
+# GLOBAL CSS (TEXT WRAP + CLEAN TABLE)
+# =========================================================
+st.markdown("""
+<style>
+    td {
+        white-space: normal !important;
+        word-wrap: break-word;
+        vertical-align: top;
+    }
+    th {
+        white-space: normal !important;
+        word-wrap: break-word;
+        text-align: center;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# LOCKED DEPARTMENT CONFIG
 # =========================================================
 DEPARTMENT_CONFIG = {
     "Gemology": {
@@ -35,26 +53,16 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# SAFE EXCEL LOADER (NO RED SCREENS)
+# SAFE EXCEL LOADER
 # =========================================================
 def load_excel_safely(path, sheet):
     if not os.path.exists(path):
-        st.error(
-            f"🚫 Required board file not found:\n\n{path}\n\n"
-            "Please contact the administrator."
-        )
+        st.error(f"🚫 Required board file not found:\n\n{path}")
         st.stop()
-    try:
-        return pd.read_excel(path, sheet_name=sheet)
-    except Exception as e:
-        st.error(
-            "🚫 Unable to read the configured Excel sheet.\n\n"
-            f"Details: {e}"
-        )
-        st.stop()
+    return pd.read_excel(path, sheet_name=sheet)
 
 # =========================================================
-# SIDEBAR – NAVIGATION
+# SIDEBAR
 # =========================================================
 st.sidebar.header("📁 Navigation")
 
@@ -71,7 +79,6 @@ view_mode = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎨 Highlighting (Optional)")
 
-# 🔒 NEW: explicit opt-in toggle (OFF by default)
 enable_highlight = st.sidebar.checkbox(
     "Enable highlighting",
     value=False
@@ -98,21 +105,28 @@ df = load_excel_safely(config["file"], config["sheet"])
 df_display = df.fillna("")
 
 # =========================================================
-# STYLING FUNCTION (FIXED — NO PRE-HIGHLIGHTING)
+# STYLING FUNCTION (WRAP + ALIGNMENT)
 # =========================================================
 def style_dataframe(df):
-    def highlight_cells(val):
-        if enable_highlight and isinstance(val, (int, float)):
-            return f"background-color: {highlight_color}; text-align: center;"
+    def style_cell(val):
+        if isinstance(val, (int, float)):
+            base = "text-align: center;"
+            if enable_highlight:
+                return base + f" background-color: {highlight_color};"
+            return base
         return "text-align: left;"
 
-    styled = df.style.applymap(highlight_cells)
+    styled = (
+        df.style
+        .applymap(style_cell)
+        .set_properties(**{
+            "white-space": "normal",
+            "word-wrap": "break-word",
+            "vertical-align": "top"
+        })
+    )
 
-    if (
-        enable_highlight
-        and highlight_row > 0
-        and highlight_row <= len(df)
-    ):
+    if enable_highlight and 0 < highlight_row <= len(df):
         styled = styled.apply(
             lambda x: [
                 f"background-color: {highlight_color}; font-weight: bold;"
@@ -125,7 +139,7 @@ def style_dataframe(df):
     return styled
 
 # =========================================================
-# INTERACTIVE SPREADSHEET VIEW
+# INTERACTIVE VIEW
 # =========================================================
 if view_mode == "Interactive Spreadsheet":
     st.subheader(f"📄 Spreadsheet View — {selected_department}")
@@ -138,23 +152,19 @@ if view_mode == "Interactive Spreadsheet":
     )
 
 # =========================================================
-# EXECUTIVE VIEW
+# EXECUTIVE VIEW (WRAPPED, BOARD-READY)
 # =========================================================
 else:
     st.subheader(f"🧑‍💼 Executive View — {selected_department}")
-    st.caption("Board-friendly structured view with emphasis on figures.")
+    st.caption("Board-friendly structured view with wrapped text and alignment.")
 
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
 
     if numeric_cols:
-        total_rows = len(df)
-        total_numeric_cols = len(numeric_cols)
-        numeric_sum = df[numeric_cols].sum().sum()
-
         col1, col2, col3 = st.columns(3)
-        col1.metric("Total Rows", total_rows)
-        col2.metric("Numeric Columns", total_numeric_cols)
-        col3.metric("Total Numeric Sum", f"{numeric_sum:,.2f}")
+        col1.metric("Total Rows", len(df))
+        col2.metric("Numeric Columns", len(numeric_cols))
+        col3.metric("Total Numeric Sum", f"{df[numeric_cols].sum().sum():,.2f}")
 
     st.markdown("---")
 
