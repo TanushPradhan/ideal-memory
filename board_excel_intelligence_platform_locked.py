@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import os
-import matplotlib.pyplot as plt
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # =========================================================
 # APP CONFIG
@@ -14,75 +12,36 @@ st.set_page_config(
 
 st.title("📊 Board Excel Intelligence Platform")
 st.caption(
-    "Board-ready dashboard for Academic Expansion Plans "
+    "Locked, board-ready spreadsheet view for Academic Expansion Plans "
     "(Gemology, Manufacturing & CAD)"
 )
 
 # =========================================================
-# FILE CONFIG
+# DEPARTMENT CONFIG (FILES ARE SOURCE OF TRUTH)
 # =========================================================
 DEPARTMENT_CONFIG = {
     "Gemology": {
         "file": "IIGJ Mumbai - Academic Expansion Plan - Gemology Formatted.xlsx",
-        "sheet": "Department of Gemmology_Format",
-        "cost_col": "Total in Lakhs",
-        "qty_col": "Quantity"
+        "sheet": 0
     },
     "Manufacturing": {
         "file": "IIGJ - Academic Expansion Plan - Manufacturing Formatted.xlsx",
-        "sheet": "Formated_Budget",
-        "cost_col": "Cost-to-Company (in Lakhs)",
-        "qty_col": "Quantity"
+        "sheet": 0
     },
     "CAD": {
         "file": "IIGJ Mumbai - Academic expansion Plan_CAD Formatted.xlsx",
-        "sheet": "Formatted_Budget",
-        "cost_col": "Total Cost",
-        "qty_col": "Quantity"
+        "sheet": 0
     }
 }
 
 # =========================================================
-# COLUMN HEADERS
-# =========================================================
-COLUMN_NAME_OVERRIDES = {
-    "Gemology": {
-        "Unnamed: 1": "Instrument Name",
-        "Unnamed: 2": "Type",
-        "Unnamed: 3": "Specification",
-        "Unnamed: 4": "Quantity",
-        "Unnamed: 5": "Unit Price (in Lakhs)",
-        "Unnamed: 6": "Total in Lakhs",
-        "Unnamed: 7": "Remarks"
-    },
-    "Manufacturing": {
-        "Unnamed: 1": "Particulars",
-        "Unnamed: 2": "Department",
-        "Unnamed: 3": "Details",
-        "Unnamed: 4": "Quantity",
-        "Unnamed: 5": "Cost per Item (in Lakhs)",
-        "Unnamed: 6": "According to Capacity",
-        "Unnamed: 7": "Cost-to-Company (in Lakhs)",
-        "Unnamed: 8": "Remarks"
-    },
-    "CAD": {
-        "Unnamed: 1": "Particulars",
-        "Unnamed: 2": "Specification",
-        "Unnamed: 3": "Quantity",
-        "Unnamed: 4": "Cost per Item",
-        "Unnamed: 5": "Total Cost",
-        "Unnamed: 6": "Remarks"
-    }
-}
-
-# =========================================================
-# SAFE LOADER
+# SAFE EXCEL LOADER (NO DATA LOSS)
 # =========================================================
 def load_excel(path, sheet):
     if not os.path.exists(path):
-        st.error(f"Missing file: {path}")
+        st.error(f"Required file not found:\n{path}")
         st.stop()
-    return pd.read_excel(path, sheet_name=sheet)
+    return pd.read_excel(path, sheet_name=sheet, header=None)
 
 # =========================================================
 # SIDEBAR
@@ -94,121 +53,71 @@ department = st.sidebar.selectbox(
     list(DEPARTMENT_CONFIG.keys())
 )
 
-view_mode = st.sidebar.radio(
-    "View Mode",
-    ["Interactive Spreadsheet", "Executive View"]
-)
-
 # =========================================================
 # LOAD DATA
 # =========================================================
-cfg = DEPARTMENT_CONFIG[department]
-df = load_excel(cfg["file"], cfg["sheet"])
+config = DEPARTMENT_CONFIG[department]
+df = load_excel(config["file"], config["sheet"])
 
-# Remove stray numeric headers like 60
-df = df.loc[:, ~df.columns.map(lambda x: str(x).strip().isdigit())]
-
-df.rename(columns=COLUMN_NAME_OVERRIDES.get(department, {}), inplace=True)
+# Replace NaN with empty string (DO NOT DROP ROWS)
 df = df.fillna("")
 
 # =========================================================
-# GRID (UNCHANGED)
+# RENDER AS TRUE HTML TABLE (GRIDLINES + WRAP)
 # =========================================================
-gb = GridOptionsBuilder.from_dataframe(df)
-gb.configure_default_column(
-    wrapText=True,
-    autoHeight=True,
-    resizable=True,
-    filter=True,
-    sortable=False,
-    cellStyle={
-        "borderRight": "1px solid #D0D0D0",
-        "borderBottom": "1px solid #D0D0D0",
-        "whiteSpace": "normal",
-        "lineHeight": "1.4"
-    }
-)
-gb.configure_grid_options(enableRangeSelection=True, rowHeight=44)
+def render_table(df):
+    html = """
+    <style>
+        .excel-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .excel-table th,
+        .excel-table td {
+            border: 1px solid #d0d0d0;
+            padding: 6px 8px;
+            vertical-align: top;
+            text-align: left;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .excel-table th {
+            background-color: #f5f5f5;
+            font-weight: 600;
+        }
+        .excel-container {
+            max-height: 75vh;
+            overflow: auto;
+        }
+    </style>
+    <div class="excel-container">
+    <table class="excel-table">
+    """
+
+    # Render rows exactly as-is
+    for r_idx, row in df.iterrows():
+        html += "<tr>"
+        for cell in row:
+            tag = "th" if r_idx == 0 else "td"
+            html += f"<{tag}>{cell}</{tag}>"
+        html += "</tr>"
+
+    html += "</table></div>"
+    return html
 
 # =========================================================
-# INTERACTIVE VIEW
+# DISPLAY
 # =========================================================
-if view_mode == "Interactive Spreadsheet":
-    st.subheader(f"📄 Interactive Spreadsheet — {department}")
+st.subheader(f"📄 Spreadsheet View — {department}")
+st.caption("Excel-like, read-only view with wrapped text and full gridlines.")
 
-    AgGrid(
-        df,
-        gridOptions=gb.build(),
-        update_mode=GridUpdateMode.NO_UPDATE,
-        allow_unsafe_jscode=True,
-        theme="alpine",
-        height=720
-    )
-
-# =========================================================
-# EXECUTIVE VIEW (FIXED FIGURES)
-# =========================================================
-else:
-    st.subheader(f"🧑‍💼 Executive View — {department}")
-    st.caption("All figures are computed directly from the approved spreadsheet.")
-
-    # ---- Explicit numeric conversion ----
-    cost_col = cfg["cost_col"]
-    qty_col = cfg["qty_col"]
-
-    df[cost_col] = pd.to_numeric(df[cost_col], errors="coerce")
-    if qty_col in df.columns:
-        df[qty_col] = pd.to_numeric(df[qty_col], errors="coerce")
-
-    total_budget = df[cost_col].sum()
-    total_qty = df[qty_col].sum() if qty_col in df.columns else None
-    total_items = df[cost_col].notna().sum()
-
-    # ---- KPI CARDS ----
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Line Items", total_items)
-    c2.metric("Total Quantity", f"{int(total_qty)}" if total_qty is not None else "—")
-    c3.metric("Grand Total Budget (₹ Lakhs)", f"{total_budget:,.2f}")
-
-    st.markdown("---")
-
-    # ---- TOP COST DRIVERS ----
-    top_costs = df[[cost_col]].dropna().sort_values(cost_col, ascending=False).head(5)
-
-    st.subheader("🔍 Top Cost Drivers")
-    st.dataframe(top_costs, use_container_width=True)
-
-    # ---- BAR CHART ----
-    fig, ax = plt.subplots()
-    top_costs[cost_col].plot(kind="bar", ax=ax)
-    ax.set_title("Top 5 Cost Contributors")
-    ax.set_ylabel("Cost (₹ Lakhs)")
-    ax.set_xlabel("Line Item Index")
-    plt.tight_layout()
-    st.pyplot(fig)
-
-    # ---- PIE CHART ----
-    fig2, ax2 = plt.subplots()
-    top_costs[cost_col].plot(kind="pie", ax=ax2, autopct="%1.1f%%")
-    ax2.set_ylabel("")
-    ax2.set_title("Share of Total Spend (Top 5)")
-    plt.tight_layout()
-    st.pyplot(fig2)
-
-    st.markdown("---")
-    st.subheader("📄 Executive Reference Sheet")
-
-    AgGrid(
-        df,
-        gridOptions=gb.build(),
-        update_mode=GridUpdateMode.NO_UPDATE,
-        allow_unsafe_jscode=True,
-        theme="alpine",
-        height=500
-    )
+st.markdown(render_table(df), unsafe_allow_html=True)
 
 # =========================================================
 # FOOTER
 # =========================================================
 st.markdown("---")
-st.caption("© Board Excel Intelligence Platform — Executive Intelligence Layer")
+st.caption(
+    "© Board Excel Intelligence Platform — Spreadsheet Rendering Layer"
+)
