@@ -18,7 +18,7 @@ st.caption(
 )
 
 # =========================================================
-# LOCKED FILE CONFIG
+# FILE CONFIG
 # =========================================================
 DEPARTMENT_CONFIG = {
     "Gemology": {
@@ -36,7 +36,7 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# FINAL, BOARD-APPROVED COLUMN HEADERS
+# BOARD-SAFE COLUMN HEADERS
 # =========================================================
 COLUMN_NAME_OVERRIDES = {
     "Gemology": {
@@ -93,16 +93,23 @@ view_mode = st.sidebar.radio(
 )
 
 # =========================================================
-# LOAD & PREP DATA
+# LOAD DATA
 # =========================================================
 config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
 
-# Apply board-safe column headers
+# =========================================================
+# 🔥 FIX: REMOVE NUMERIC HEADER COLUMNS (e.g. "60")
+# =========================================================
+df = df.loc[:, ~df.columns.map(lambda x: str(x).strip().isdigit())]
+
+# =========================================================
+# APPLY BOARD-SAFE HEADERS
+# =========================================================
 df = df.rename(columns=COLUMN_NAME_OVERRIDES.get(department, {}))
 
 # =========================================================
-# AGGRID RENDERER (GRIDLINES + WRAP)
+# GRID RENDERER (WRAP + GRIDLINES)
 # =========================================================
 def render_grid(df, compact=False):
     gb = GridOptionsBuilder.from_dataframe(df)
@@ -119,10 +126,6 @@ def render_grid(df, compact=False):
             "whiteSpace": "normal",
             "lineHeight": "1.4"
         }
-    )
-
-    gb.configure_grid_options(
-        suppressRowHoverHighlight=False
     )
 
     gb.configure_grid_options(
@@ -144,7 +147,7 @@ def render_grid(df, compact=False):
 # =========================================================
 if view_mode == "Analysis View":
     st.subheader(f"📄 Analysis View — {department}")
-    st.caption("Analyst-focused view for validation and review.")
+    st.caption("Analyst-focused view for validation and internal review.")
     render_grid(df, compact=True)
 
 # =========================================================
@@ -152,7 +155,7 @@ if view_mode == "Analysis View":
 # =========================================================
 else:
     st.subheader(f"🧑‍💼 Executive View — {department}")
-    st.caption("Board-ready view with wrapped text and clear gridlines.")
+    st.caption("Board-ready view with wrapped text and clean structure.")
 
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     if numeric_cols:
