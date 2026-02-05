@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
 # =========================================================
 # APP CONFIG
@@ -18,7 +18,7 @@ st.caption(
 )
 
 # =========================================================
-# FILE CONFIG
+# DEPARTMENT CONFIG
 # =========================================================
 DEPARTMENT_CONFIG = {
     "Gemology": {
@@ -36,7 +36,7 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# BOARD-SAFE COLUMN HEADERS
+# PROFESSIONAL COLUMN NAME OVERRIDES
 # =========================================================
 COLUMN_NAME_OVERRIDES = {
     "Gemology": {
@@ -44,7 +44,7 @@ COLUMN_NAME_OVERRIDES = {
         "Unnamed: 2": "Type",
         "Unnamed: 3": "Specification",
         "Unnamed: 4": "Quantity",
-        "Unnamed: 5": "Unit Price (In Lakhs)",
+        "Unnamed: 5": "Unit Price (in Lakhs)",
         "Unnamed: 6": "Total in Lakhs",
         "Unnamed: 7": "Remarks"
     },
@@ -71,101 +71,147 @@ COLUMN_NAME_OVERRIDES = {
 # =========================================================
 # SAFE EXCEL LOADER
 # =========================================================
-def load_excel(path, sheet):
+def load_excel_safely(path, sheet):
     if not os.path.exists(path):
-        st.error(f"Required file missing: {path}")
+        st.error(f"Required file not found: {path}")
         st.stop()
-    return pd.read_excel(path, sheet_name=sheet).fillna("")
+    try:
+        return pd.read_excel(path, sheet_name=sheet)
+    except Exception as e:
+        st.error(f"Failed to read Excel file: {e}")
+        st.stop()
 
 # =========================================================
 # SIDEBAR
 # =========================================================
 st.sidebar.header("📁 Navigation")
 
-department = st.sidebar.selectbox(
+selected_department = st.sidebar.selectbox(
     "Select Department",
     list(DEPARTMENT_CONFIG.keys())
 )
 
 view_mode = st.sidebar.radio(
     "View Mode",
-    ["Analysis View", "Executive View"]
+    ["Interactive Spreadsheet", "Executive View"]
 )
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("🎨 Highlighting (Optional)")
+enable_highlight = st.sidebar.checkbox("Enable highlighting", value=False)
+highlight_color = st.sidebar.color_picker("Highlight color", "#FFF3A0")
+
+# =========================================================
+# SESSION STATE FOR HIGHLIGHTS
+# =========================================================
+if "highlighted_ranges" not in st.session_state:
+    st.session_state.highlighted_ranges = []
 
 # =========================================================
 # LOAD DATA
 # =========================================================
-config = DEPARTMENT_CONFIG[department]
-df = load_excel(config["file"], config["sheet"])
+config = DEPARTMENT_CONFIG[selected_department]
+df = load_excel_safely(config["file"], config["sheet"])
+
+# Remove accidental numeric headers like "60"
+df.columns = [str(c) if not isinstance(c, (int, float)) else "" for c in df.columns]
+
+# Apply professional column names
+df.rename(columns=COLUMN_NAME_OVERRIDES.get(selected_department, {}), inplace=True)
+
+df_display = df.fillna("")
 
 # =========================================================
-# 🔥 FIX: REMOVE NUMERIC HEADER COLUMNS (e.g. "60")
+# AG-GRID CELL STYLE
 # =========================================================
-df = df.loc[:, ~df.columns.map(lambda x: str(x).strip().isdigit())]
-
-# =========================================================
-# APPLY BOARD-SAFE HEADERS
-# =========================================================
-df = df.rename(columns=COLUMN_NAME_OVERRIDES.get(department, {}))
-
-# =========================================================
-# GRID RENDERER (WRAP + GRIDLINES)
-# =========================================================
-def render_grid(df, compact=False):
-    gb = GridOptionsBuilder.from_dataframe(df)
-
-    gb.configure_default_column(
-        wrapText=True,
-        autoHeight=True,
-        resizable=True,
-        sortable=True,
-        filter=True,
-        cellStyle={
-            "borderRight": "1px solid #cfcfcf",
-            "borderBottom": "1px solid #cfcfcf",
-            "whiteSpace": "normal",
-            "lineHeight": "1.4"
+cell_style_jscode = JsCode("""
+function(params) {
+    const ranges = window.highlightedRanges || [];
+    for (let i = 0; i < ranges.length; i++) {
+        const r = ranges[i];
+        if (
+            params.rowIndex >= r.startRow &&
+            params.rowIndex <= r.endRow &&
+            r.columns.includes(params.colDef.field)
+        ) {
+            return {
+                backgroundColor: '%s',
+                fontWeight: 'bold'
+            };
         }
-    )
-
-    gb.configure_grid_options(
-        rowHeight=32 if compact else 48
-    )
-
-    AgGrid(
-        df,
-        gridOptions=gb.build(),
-        theme="alpine",
-        update_mode=GridUpdateMode.NO_UPDATE,
-        allow_unsafe_jscode=True,
-        fit_columns_on_grid_load=False,
-        height=650
-    )
+    }
+    return null;
+}
+""" % highlight_color)
 
 # =========================================================
-# ANALYSIS VIEW
+# GRID BUILDER
 # =========================================================
-if view_mode == "Analysis View":
-    st.subheader(f"📄 Analysis View — {department}")
-    st.caption("Analyst-focused view for validation and internal review.")
-    render_grid(df, compact=True)
+gb = GridOptionsBuilder.from_dataframe(df_display)
+
+gb.configure_default_column(
+    wrapText=True,
+    autoHeight=True,
+    resizable=True,
+    sortable=False,
+    filter=True,
+    cellStyle=cell_style_jscode
+)
+
+gb.configure_grid_options(
+    enableRangeSelection=True,
+    suppressMultiRangeSelection=False,
+    rowHeight=42,
+    getContextMenuItems=JsCode("""
+    function(params) {
+        const items = params.defaultItems || [];
+        items.push({
+            name: 'Highlight Selection',
+            action: function() {
+                const ranges = params.api.getCellRanges();
+                if (!ranges) return;
+
+                window.highlightedRanges = window.highlightedRanges || [];
+                ranges.forEach(r => {
+                    window.highlightedRanges.push({
+                        startRow: Math.min(r.startRow.rowIndex, r.endRow.rowIndex),
+                        endRow: Math.max(r.startRow.rowIndex, r.endRow.rowIndex),
+                        columns: r.columns.map(c => c.colId)
+                    });
+                });
+            }
+        });
+
+        items.push({
+            name: 'Clear Highlights',
+            action: function() {
+                window.highlightedRanges = [];
+            }
+        });
+
+        return items;
+    }
+    """)
+)
 
 # =========================================================
-# EXECUTIVE VIEW
+# RENDER
 # =========================================================
-else:
-    st.subheader(f"🧑‍💼 Executive View — {department}")
-    st.caption("Board-ready view with wrapped text and clean structure.")
+st.subheader(
+    f"📄 Spreadsheet View — {selected_department}"
+    if view_mode == "Interactive Spreadsheet"
+    else f"🧑‍💼 Executive View — {selected_department}"
+)
 
-    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-    if numeric_cols:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Rows", len(df))
-        c2.metric("Numeric Columns", len(numeric_cols))
-        c3.metric("Total", f"{df[numeric_cols].sum().sum():,.2f}")
-
-    st.markdown("---")
-    render_grid(df, compact=False)
+AgGrid(
+    df_display,
+    gridOptions=gb.build(),
+    update_mode=GridUpdateMode.NO_UPDATE,
+    allow_unsafe_jscode=True,
+    theme="alpine",
+    height=700,
+    fit_columns_on_grid_load=False
+)
 
 # =========================================================
 # FOOTER
