@@ -36,7 +36,7 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# PROFESSIONAL COLUMN NAME OVERRIDES
+# COLUMN NAME OVERRIDES
 # =========================================================
 COLUMN_NAME_OVERRIDES = {
     "Gemology": {
@@ -69,7 +69,7 @@ COLUMN_NAME_OVERRIDES = {
 }
 
 # =========================================================
-# SAFE EXCEL LOADER
+# SAFE LOADER
 # =========================================================
 def load_excel_safely(path, sheet):
     if not os.path.exists(path):
@@ -78,7 +78,7 @@ def load_excel_safely(path, sheet):
     try:
         return pd.read_excel(path, sheet_name=sheet)
     except Exception as e:
-        st.error(f"Failed to read Excel file: {e}")
+        st.error(f"Excel read error: {e}")
         st.stop()
 
 # =========================================================
@@ -102,50 +102,55 @@ enable_highlight = st.sidebar.checkbox("Enable highlighting", value=False)
 highlight_color = st.sidebar.color_picker("Highlight color", "#FFF3A0")
 
 # =========================================================
-# SESSION STATE FOR HIGHLIGHTS
-# =========================================================
-if "highlighted_ranges" not in st.session_state:
-    st.session_state.highlighted_ranges = []
-
-# =========================================================
 # LOAD DATA
 # =========================================================
 config = DEPARTMENT_CONFIG[selected_department]
 df = load_excel_safely(config["file"], config["sheet"])
 
-# Remove accidental numeric headers like "60"
-df.columns = [str(c) if not isinstance(c, (int, float)) else "" for c in df.columns]
+# Remove stray numeric headers like "60"
+df.columns = ["" if isinstance(c, (int, float)) else str(c) for c in df.columns]
 
-# Apply professional column names
+# Apply clean headers
 df.rename(columns=COLUMN_NAME_OVERRIDES.get(selected_department, {}), inplace=True)
-
 df_display = df.fillna("")
 
 # =========================================================
-# AG-GRID CELL STYLE
+# SESSION STATE (HIGHLIGHTS)
 # =========================================================
-cell_style_jscode = JsCode("""
+if "highlightedRanges" not in st.session_state:
+    st.session_state.highlightedRanges = []
+
+# =========================================================
+# CELL STYLE WITH GRIDLINES (CRITICAL FIX)
+# =========================================================
+cell_style = JsCode("""
 function(params) {
-    const ranges = window.highlightedRanges || [];
-    for (let i = 0; i < ranges.length; i++) {
-        const r = ranges[i];
+    let style = {
+        borderRight: '1px solid #D0D0D0',
+        borderBottom: '1px solid #D0D0D0',
+        whiteSpace: 'normal',
+        lineHeight: '1.4'
+    };
+
+    if (!window.highlightedRanges) return style;
+
+    for (let i = 0; i < window.highlightedRanges.length; i++) {
+        const r = window.highlightedRanges[i];
         if (
             params.rowIndex >= r.startRow &&
             params.rowIndex <= r.endRow &&
             r.columns.includes(params.colDef.field)
         ) {
-            return {
-                backgroundColor: '%s',
-                fontWeight: 'bold'
-            };
+            style.backgroundColor = '%s';
+            style.fontWeight = 'bold';
         }
     }
-    return null;
+    return style;
 }
 """ % highlight_color)
 
 # =========================================================
-# GRID BUILDER
+# GRID OPTIONS
 # =========================================================
 gb = GridOptionsBuilder.from_dataframe(df_display)
 
@@ -153,18 +158,18 @@ gb.configure_default_column(
     wrapText=True,
     autoHeight=True,
     resizable=True,
-    sortable=False,
     filter=True,
-    cellStyle=cell_style_jscode
+    sortable=False,
+    cellStyle=cell_style
 )
 
 gb.configure_grid_options(
     enableRangeSelection=True,
-    suppressMultiRangeSelection=False,
-    rowHeight=42,
+    rowHeight=44,
     getContextMenuItems=JsCode("""
     function(params) {
         const items = params.defaultItems || [];
+
         items.push({
             name: 'Highlight Selection',
             action: function() {
@@ -172,6 +177,7 @@ gb.configure_grid_options(
                 if (!ranges) return;
 
                 window.highlightedRanges = window.highlightedRanges || [];
+
                 ranges.forEach(r => {
                     window.highlightedRanges.push({
                         startRow: Math.min(r.startRow.rowIndex, r.endRow.rowIndex),
@@ -195,7 +201,7 @@ gb.configure_grid_options(
 )
 
 # =========================================================
-# RENDER
+# RENDER GRID
 # =========================================================
 st.subheader(
     f"📄 Spreadsheet View — {selected_department}"
@@ -209,7 +215,7 @@ AgGrid(
     update_mode=GridUpdateMode.NO_UPDATE,
     allow_unsafe_jscode=True,
     theme="alpine",
-    height=700,
+    height=720,
     fit_columns_on_grid_load=False
 )
 
