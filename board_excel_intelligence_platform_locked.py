@@ -17,27 +17,6 @@ st.caption(
 )
 
 # =========================================================
-# GLOBAL TABLE STYLING (TEXT WRAP + ALIGNMENT)
-# =========================================================
-st.markdown(
-    """
-    <style>
-    thead th {
-        white-space: normal !important;
-        word-wrap: break-word !important;
-        text-align: center !important;
-    }
-    tbody td {
-        white-space: normal !important;
-        word-wrap: break-word !important;
-        vertical-align: top !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# =========================================================
 # LOCKED DEPARTMENT CONFIG
 # =========================================================
 DEPARTMENT_CONFIG = {
@@ -51,7 +30,7 @@ DEPARTMENT_CONFIG = {
     },
     "CAD": {
         "file": "IIGJ Mumbai - Academic expansion Plan_CAD Formatted.xlsx",
-        "sheet": "Formated_Budget"
+        "sheet": "Formatted_Budget"
     }
 }
 
@@ -65,7 +44,7 @@ COLUMN_NAME_OVERRIDES = {
         "Unnamed: 3": "Students",
         "Unnamed: 4": "Quantity",
         "Unnamed: 5": "Unit Price (in Lakhs)",
-        "Unnamed: 6": "Total (in lakhs)",
+        "Unnamed: 6": "Total (in Lakhs)",
         "Unnamed: 7": "Remarks"
     },
     "Manufacturing": {
@@ -73,9 +52,9 @@ COLUMN_NAME_OVERRIDES = {
         "Unnamed: 2": "Department",
         "Unnamed: 3": "Details",
         "Unnamed: 4": "Quantity",
-        "Unnamed: 5": "Cost per Item (In Lakhs)",
-        "Unnamed: 6": "According to the capacity requirement for 60 students.",
-        "Unnamed: 7": "Cost-to-Company in Lakhs (Equipment according to the capacity requirement of 60)",
+        "Unnamed: 5": "Cost per Item (in Lakhs)",
+        "Unnamed: 6": "Capacity Requirement (60 Students)",
+        "Unnamed: 7": "Cost-to-Company (in Lakhs)",
         "Unnamed: 8": "Remarks"
     },
     "CAD": {
@@ -93,24 +72,19 @@ COLUMN_NAME_OVERRIDES = {
 # =========================================================
 def load_excel_safely(path, sheet):
     if not os.path.exists(path):
-        st.error(f"🚫 Required board file not found:\n\n{path}")
+        st.error(
+            f"🚫 Required board file not found:\n\n{path}\n\n"
+            "Please contact the administrator."
+        )
         st.stop()
     try:
         return pd.read_excel(path, sheet_name=sheet)
     except Exception as e:
-        st.error(f"🚫 Unable to read Excel sheet.\n\n{e}")
+        st.error(
+            "🚫 Unable to read the configured Excel sheet.\n\n"
+            f"Details: {e}"
+        )
         st.stop()
-
-# =========================================================
-# CLEAN COLUMN HEADERS
-# =========================================================
-def clean_column_headers(df, department):
-    overrides = COLUMN_NAME_OVERRIDES.get(department, {})
-    df.columns = [
-        overrides.get(col, col) if isinstance(col, str) else col
-        for col in df.columns
-    ]
-    return df
 
 # =========================================================
 # SIDEBAR – NAVIGATION
@@ -127,58 +101,46 @@ view_mode = st.sidebar.radio(
     ["Interactive Spreadsheet", "Executive View"]
 )
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("🎨 Highlighting (Optional)")
-
-enable_highlight = st.sidebar.checkbox("Enable highlighting")
-
-highlight_color = st.sidebar.color_picker(
-    "Highlight color",
-    "#FFF3A0",
-    disabled=not enable_highlight
-)
-
-highlight_row = st.sidebar.number_input(
-    "Highlight row (1-based, optional)",
-    min_value=0,
-    step=1,
-    disabled=not enable_highlight
-)
-
 # =========================================================
 # LOAD DATA
 # =========================================================
 config = DEPARTMENT_CONFIG[selected_department]
 df = load_excel_safely(config["file"], config["sheet"])
-df = clean_column_headers(df, selected_department)
+
+# Rename columns professionally
+df = df.rename(columns=COLUMN_NAME_OVERRIDES.get(selected_department, {}))
+
+# Replace NaN with empty strings for clean display
 df_display = df.fillna("")
 
 # =========================================================
-# STYLING FUNCTION (NO AUTO HIGHLIGHTING)
+# STYLING (NO AUTO HIGHLIGHTING)
 # =========================================================
 def style_dataframe(df):
-    styled = df.style.set_properties(
-        **{
-            "text-align": "left",
+    return (
+        df.style
+        .set_properties(**{
             "white-space": "normal",
-            "word-wrap": "break-word"
-        }
+            "word-wrap": "break-word",
+            "vertical-align": "top",
+            "text-align": "left"
+        })
+        .set_table_styles([
+            {
+                "selector": "th",
+                "props": [
+                    ("white-space", "normal"),
+                    ("word-wrap", "break-word"),
+                    ("text-align", "center"),
+                    ("font-weight", "bold")
+                ]
+            }
+        ])
     )
 
-    if enable_highlight and highlight_row > 0 and highlight_row <= len(df):
-        styled = styled.apply(
-            lambda x: [
-                f"background-color: {highlight_color}; font-weight: bold;"
-                if i == highlight_row - 1 else ""
-                for i in range(len(df))
-            ],
-            axis=0
-        )
-
-    return styled
-
 # =========================================================
-# INTERACTIVE VIEW
+# INTERACTIVE SPREADSHEET VIEW
+# (Fast scrolling, Excel-like)
 # =========================================================
 if view_mode == "Interactive Spreadsheet":
     st.subheader(f"📄 Spreadsheet View — {selected_department}")
@@ -192,10 +154,11 @@ if view_mode == "Interactive Spreadsheet":
 
 # =========================================================
 # EXECUTIVE VIEW
+# (Board-safe, wrapped, readable)
 # =========================================================
 else:
     st.subheader(f"🧑‍💼 Executive View — {selected_department}")
-    st.caption("Board-friendly structured view with clarity and completeness.")
+    st.caption("Board-friendly structured view with complete visibility.")
 
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
 
@@ -203,15 +166,16 @@ else:
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Rows", len(df))
         col2.metric("Numeric Columns", len(numeric_cols))
-        col3.metric("Total Numeric Sum", f"{df[numeric_cols].sum().sum():,.2f}")
+        col3.metric(
+            "Total Numeric Sum",
+            f"{df[numeric_cols].sum().sum():,.2f}"
+        )
 
     st.markdown("---")
 
-    st.dataframe(
-        style_dataframe(df_display),
-        use_container_width=True,
-        height=650
-    )
+    # IMPORTANT:
+    # st.write + Pandas Styler is REQUIRED for text wrapping
+    st.write(style_dataframe(df_display))
 
 # =========================================================
 # FOOTER
@@ -220,4 +184,3 @@ st.markdown("---")
 st.caption(
     "© Board Excel Intelligence Platform — Locked Academic Expansion Dashboard"
 )
-
