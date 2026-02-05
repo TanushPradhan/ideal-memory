@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # =========================================================
 # APP CONFIG
@@ -24,15 +24,21 @@ st.caption(
 DEPARTMENT_CONFIG = {
     "Gemology": {
         "file": "IIGJ Mumbai - Academic Expansion Plan - Gemology Formatted.xlsx",
-        "sheet": "Department of Gemmology_Format"
+        "sheet": "Department of Gemmology_Format",
+        "cost_col": "Total in Lakhs",
+        "qty_col": "Quantity"
     },
     "Manufacturing": {
         "file": "IIGJ - Academic Expansion Plan - Manufacturing Formatted.xlsx",
-        "sheet": "Formated_Budget"
+        "sheet": "Formated_Budget",
+        "cost_col": "Cost-to-Company (in Lakhs)",
+        "qty_col": "Quantity"
     },
     "CAD": {
         "file": "IIGJ Mumbai - Academic expansion Plan_CAD Formatted.xlsx",
-        "sheet": "Formatted_Budget"
+        "sheet": "Formatted_Budget",
+        "cost_col": "Total Cost",
+        "qty_col": "Quantity"
     }
 }
 
@@ -76,7 +82,7 @@ def load_excel(path, sheet):
     if not os.path.exists(path):
         st.error(f"Missing file: {path}")
         st.stop()
-    return pd.read_excel(path, sheet_name=sheet).fillna("")
+    return pd.read_excel(path, sheet_name=sheet)
 
 # =========================================================
 # SIDEBAR
@@ -99,16 +105,16 @@ view_mode = st.sidebar.radio(
 cfg = DEPARTMENT_CONFIG[department]
 df = load_excel(cfg["file"], cfg["sheet"])
 
-# Remove numeric-only headers like 60
+# Remove stray numeric headers like 60
 df = df.loc[:, ~df.columns.map(lambda x: str(x).strip().isdigit())]
 
 df.rename(columns=COLUMN_NAME_OVERRIDES.get(department, {}), inplace=True)
-df_display = df.fillna("")
+df = df.fillna("")
 
 # =========================================================
-# AGGRID SETUP (unchanged)
+# GRID (UNCHANGED)
 # =========================================================
-gb = GridOptionsBuilder.from_dataframe(df_display)
+gb = GridOptionsBuilder.from_dataframe(df)
 gb.configure_default_column(
     wrapText=True,
     autoHeight=True,
@@ -131,7 +137,7 @@ if view_mode == "Interactive Spreadsheet":
     st.subheader(f"📄 Interactive Spreadsheet — {department}")
 
     AgGrid(
-        df_display,
+        df,
         gridOptions=gb.build(),
         update_mode=GridUpdateMode.NO_UPDATE,
         allow_unsafe_jscode=True,
@@ -140,82 +146,60 @@ if view_mode == "Interactive Spreadsheet":
     )
 
 # =========================================================
-# EXECUTIVE VIEW WITH INSIGHTS
+# EXECUTIVE VIEW (FIXED FIGURES)
 # =========================================================
 else:
     st.subheader(f"🧑‍💼 Executive View — {department}")
-    st.caption("Static insights derived directly from the provided spreadsheet.")
+    st.caption("All figures are computed directly from the approved spreadsheet.")
 
-    # -----------------------------------------------------
-    # Identify numeric columns
-    # -----------------------------------------------------
-    numeric_df = df.apply(pd.to_numeric, errors="coerce")
-    numeric_cols = numeric_df.columns[numeric_df.notna().any()].tolist()
+    # ---- Explicit numeric conversion ----
+    cost_col = cfg["cost_col"]
+    qty_col = cfg["qty_col"]
 
-    # -----------------------------------------------------
-    # KPI CARDS
-    # -----------------------------------------------------
-    total_rows = len(df)
-    total_numeric_sum = numeric_df.sum().sum()
+    df[cost_col] = pd.to_numeric(df[cost_col], errors="coerce")
+    if qty_col in df.columns:
+        df[qty_col] = pd.to_numeric(df[qty_col], errors="coerce")
 
+    total_budget = df[cost_col].sum()
+    total_qty = df[qty_col].sum() if qty_col in df.columns else None
+    total_items = df[cost_col].notna().sum()
+
+    # ---- KPI CARDS ----
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Line Items", total_rows)
-    c2.metric("Numeric Columns", len(numeric_cols))
-    c3.metric("Total Financial Outlay (₹ Lakhs)", f"{total_numeric_sum:,.2f}")
+    c1.metric("Total Line Items", total_items)
+    c2.metric("Total Quantity", f"{int(total_qty)}" if total_qty is not None else "—")
+    c3.metric("Grand Total Budget (₹ Lakhs)", f"{total_budget:,.2f}")
 
     st.markdown("---")
 
-    # -----------------------------------------------------
-    # COST COLUMN DETECTION (SAFE HEURISTIC)
-    # -----------------------------------------------------
-    cost_cols = [c for c in numeric_cols if "cost" in c.lower() or "total" in c.lower()]
+    # ---- TOP COST DRIVERS ----
+    top_costs = df[[cost_col]].dropna().sort_values(cost_col, ascending=False).head(5)
 
-    if cost_cols:
-        cost_col = cost_cols[-1]
+    st.subheader("🔍 Top Cost Drivers")
+    st.dataframe(top_costs, use_container_width=True)
 
-        cost_series = numeric_df[cost_col].dropna()
-        top_costs = cost_series.sort_values(ascending=False).head(5)
+    # ---- BAR CHART ----
+    fig, ax = plt.subplots()
+    top_costs[cost_col].plot(kind="bar", ax=ax)
+    ax.set_title("Top 5 Cost Contributors")
+    ax.set_ylabel("Cost (₹ Lakhs)")
+    ax.set_xlabel("Line Item Index")
+    plt.tight_layout()
+    st.pyplot(fig)
 
-        st.subheader("🔍 Key Insights")
-
-        st.markdown(
-            f"""
-            • The **total projected expenditure** for the {department} department is
-              **₹ {cost_series.sum():,.2f} Lakhs**.  
-            • The **top 5 cost items** contribute approximately
-              **{(top_costs.sum() / cost_series.sum()) * 100:.1f}%** of the total spend.  
-            • Cost concentration suggests a **capital-intensive structure** driven by
-              high-value equipment.
-            """
-        )
-
-        # -------------------------------------------------
-        # BAR CHART
-        # -------------------------------------------------
-        fig, ax = plt.subplots()
-        top_costs.plot(kind="bar", ax=ax)
-        ax.set_title("Top Cost Contributors")
-        ax.set_ylabel("Cost (₹ Lakhs)")
-        ax.set_xlabel("Line Item")
-        plt.tight_layout()
-
-        st.pyplot(fig)
-
-        # -------------------------------------------------
-        # PIE CHART
-        # -------------------------------------------------
-        fig2, ax2 = plt.subplots()
-        top_costs.plot(kind="pie", ax=ax2, autopct="%1.1f%%")
-        ax2.set_ylabel("")
-        ax2.set_title("Share of Total Spend (Top 5 Items)")
-        plt.tight_layout()
-
-        st.pyplot(fig2)
+    # ---- PIE CHART ----
+    fig2, ax2 = plt.subplots()
+    top_costs[cost_col].plot(kind="pie", ax=ax2, autopct="%1.1f%%")
+    ax2.set_ylabel("")
+    ax2.set_title("Share of Total Spend (Top 5)")
+    plt.tight_layout()
+    st.pyplot(fig2)
 
     st.markdown("---")
-    st.subheader("📄 Executive Snapshot (Reference)")
+    st.subheader("📄 Executive Reference Sheet")
+
     AgGrid(
-        df_display,
+        df,
         gridOptions=gb.build(),
         update_mode=GridUpdateMode.NO_UPDATE,
         allow_unsafe_jscode=True,
