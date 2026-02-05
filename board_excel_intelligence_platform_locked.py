@@ -71,15 +71,23 @@ view_mode = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎨 Highlighting (Optional)")
 
+# 🔒 NEW: explicit opt-in toggle (OFF by default)
+enable_highlight = st.sidebar.checkbox(
+    "Enable highlighting",
+    value=False
+)
+
 highlight_color = st.sidebar.color_picker(
-    "Highlight numeric columns",
-    "#FFF3A0"
+    "Highlight color",
+    "#FFF3A0",
+    disabled=not enable_highlight
 )
 
 highlight_row = st.sidebar.number_input(
     "Highlight row (1-based, optional)",
     min_value=0,
-    step=1
+    step=1,
+    disabled=not enable_highlight
 )
 
 # =========================================================
@@ -90,17 +98,21 @@ df = load_excel_safely(config["file"], config["sheet"])
 df_display = df.fillna("")
 
 # =========================================================
-# STYLING FUNCTION
+# STYLING FUNCTION (FIXED — NO PRE-HIGHLIGHTING)
 # =========================================================
 def style_dataframe(df):
     def highlight_cells(val):
-        if isinstance(val, (int, float)):
+        if enable_highlight and isinstance(val, (int, float)):
             return f"background-color: {highlight_color}; text-align: center;"
         return "text-align: left;"
 
     styled = df.style.applymap(highlight_cells)
 
-    if highlight_row > 0 and highlight_row <= len(df):
+    if (
+        enable_highlight
+        and highlight_row > 0
+        and highlight_row <= len(df)
+    ):
         styled = styled.apply(
             lambda x: [
                 f"background-color: {highlight_color}; font-weight: bold;"
@@ -159,4 +171,3 @@ st.markdown("---")
 st.caption(
     "© Board Excel Intelligence Platform — Locked Academic Expansion Dashboard"
 )
-
