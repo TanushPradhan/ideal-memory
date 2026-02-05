@@ -36,22 +36,13 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# HIGHLIGHT RULES
+# HIGHLIGHT RULES (LOCKED)
 # =========================================================
-TOTAL_KEYWORDS = [
-    "total",
-    "grand total",
-    "total (approx.)"
-]
+TOTAL_KEYWORDS = ["total", "grand total", "total (approx.)"]
 
 SECTION_HEADER_KEYWORDS = [
-    "instrument name",
-    "type",
-    "specification",
-    "quantity",
-    "unit price",
-    "total in lakhs",
-    "remarks"
+    "instrument name", "type", "specification",
+    "quantity", "unit price", "total in lakhs", "remarks"
 ]
 
 GEMOLOGY_CONFIG_ROWS = [
@@ -95,7 +86,7 @@ config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
 
 # =========================================================
-# HTML TABLE RENDERER
+# HTML TABLE RENDERER (LOCKED — DO NOT MODIFY)
 # =========================================================
 def render_html_table(df, department):
     html = f"""
@@ -153,10 +144,7 @@ def render_html_table(df, department):
         first_cell = str(row.iloc[0]).lower().strip()
 
         is_total = any(k in row_text for k in TOTAL_KEYWORDS)
-        is_section_header = sum(
-            1 for k in SECTION_HEADER_KEYWORDS if k in row_text
-        ) >= 4
-
+        is_section_header = sum(1 for k in SECTION_HEADER_KEYWORDS if k in row_text) >= 4
         is_config = (
             department == "Gemology"
             and any(first_cell.startswith(k) for k in GEMOLOGY_CONFIG_ROWS)
@@ -179,7 +167,7 @@ def render_html_table(df, department):
     return html
 
 # =========================================================
-# DISPLAY
+# DISPLAY TABLE
 # =========================================================
 st.subheader(f"📄 Spreadsheet View — {department}")
 st.caption(
@@ -194,9 +182,45 @@ components.html(
 )
 
 # =========================================================
+# EXECUTIVE INSIGHTS (STATIC — NOT LINKED TO TABLE)
+# =========================================================
+st.markdown("---")
+st.subheader("🧠 Executive Insights")
+
+if department == "Gemology":
+    st.markdown("""
+### 🟦 Gemology — Executive Insights
+- The Gemology expansion is structured around a **class strength of approximately 65 students**, including **2–3 spare units** to ensure operational continuity.
+- A **hybrid provisioning model** is followed, combining **per-student instruments** with **shared high-value precision equipment**.
+- Infrastructure planning emphasizes **security and contamination control**, including sealed rooms and elimination of hidden cavities.
+- Faculty deployment follows a **1:25 faculty-to-student ratio**, aligned with academic and accreditation norms.
+- High-cost gemological instruments are **shared resources**, reducing per-student capital cost while preserving instructional quality.
+""")
+
+elif department == "Manufacturing":
+    st.markdown("""
+### 🟧 Manufacturing — Executive Insights
+- The Manufacturing department has a **capital-intensive setup**, driven by casting, machining, polishing, and finishing equipment.
+- Several high-value machines are **shared across the entire student cohort**, optimizing capital utilization.
+- The cost structure clearly distinguishes **per-student tools** from **shared workshop infrastructure**.
+- Equipment capacity is planned specifically for **60 students**, ensuring scalability without redundancy.
+- Consumables and auxiliary tools are provisioned centrally to support uninterrupted workshop operations.
+""")
+
+elif department == "CAD":
+    st.markdown("""
+### 🟩 CAD — Executive Insights
+- The CAD expansion prioritizes **digital infrastructure**, resulting in a lower physical capital footprint.
+- Primary cost drivers include **software licensing, high-performance workstations, and display systems**.
+- Resources are largely **allocated per student**, reflecting individualized usage patterns.
+- Shared infrastructure requirements are limited to **servers, storage, and networking systems**.
+- The model supports **linear scalability**, with incremental costs tied directly to student intake growth.
+""")
+
+# =========================================================
 # FOOTER
 # =========================================================
 st.markdown("---")
 st.caption(
-    "© Board Excel Intelligence Platform — Spreadsheet Rendering Layer"
+    "© Board Excel Intelligence Platform — Spreadsheet Rendering Layer + Executive Intelligence Layer"
 )
