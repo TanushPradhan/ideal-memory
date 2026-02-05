@@ -36,16 +36,16 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# PROFESSIONAL COLUMN NAME OVERRIDES
+# FINAL, BOARD-APPROVED COLUMN HEADERS
 # =========================================================
 COLUMN_NAME_OVERRIDES = {
     "Gemology": {
         "Unnamed: 1": "Instrument Name",
-        "Unnamed: 2": "Specification",
-        "Unnamed: 3": "Students",
+        "Unnamed: 2": "Type",
+        "Unnamed: 3": "Specification",
         "Unnamed: 4": "Quantity",
-        "Unnamed: 5": "Unit Price (in Lakhs)",
-        "Unnamed: 6": "Total (in Lakhs)",
+        "Unnamed: 5": "Unit Price (In Lakhs)",
+        "Unnamed: 6": "Total in Lakhs",
         "Unnamed: 7": "Remarks"
     },
     "Manufacturing": {
@@ -98,11 +98,11 @@ view_mode = st.sidebar.radio(
 config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
 
-# Rename columns safely
+# Apply board-safe column headers
 df = df.rename(columns=COLUMN_NAME_OVERRIDES.get(department, {}))
 
 # =========================================================
-# AGGRID BUILDER (CORE)
+# AGGRID RENDERER (GRIDLINES + WRAP)
 # =========================================================
 def render_grid(df, compact=False):
     gb = GridOptionsBuilder.from_dataframe(df)
@@ -114,22 +114,20 @@ def render_grid(df, compact=False):
         sortable=True,
         filter=True,
         cellStyle={
-            "borderRight": "1px solid #d0d0d0",
-            "borderBottom": "1px solid #d0d0d0",
-            "white-space": "normal",
-            "line-height": "1.4"
+            "borderRight": "1px solid #cfcfcf",
+            "borderBottom": "1px solid #cfcfcf",
+            "whiteSpace": "normal",
+            "lineHeight": "1.4"
         }
     )
 
     gb.configure_grid_options(
-        domLayout="normal",
         suppressRowHoverHighlight=False
     )
 
-    if compact:
-        gb.configure_grid_options(rowHeight=32)
-    else:
-        gb.configure_grid_options(rowHeight=48)
+    gb.configure_grid_options(
+        rowHeight=32 if compact else 48
+    )
 
     AgGrid(
         df,
@@ -146,8 +144,7 @@ def render_grid(df, compact=False):
 # =========================================================
 if view_mode == "Analysis View":
     st.subheader(f"📄 Analysis View — {department}")
-    st.caption("Analyst-focused view for fast inspection and verification.")
-
+    st.caption("Analyst-focused view for validation and review.")
     render_grid(df, compact=True)
 
 # =========================================================
@@ -155,21 +152,16 @@ if view_mode == "Analysis View":
 # =========================================================
 else:
     st.subheader(f"🧑‍💼 Executive View — {department}")
-    st.caption(
-        "Board-ready presentation with wrapped text, clear column separators "
-        "and comfortable spacing."
-    )
+    st.caption("Board-ready view with wrapped text and clear gridlines.")
 
-    # Executive metrics (safe & optional)
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     if numeric_cols:
         c1, c2, c3 = st.columns(3)
         c1.metric("Rows", len(df))
         c2.metric("Numeric Columns", len(numeric_cols))
-        c3.metric("Total (All Numbers)", f"{df[numeric_cols].sum().sum():,.2f}")
+        c3.metric("Total", f"{df[numeric_cols].sum().sum():,.2f}")
 
     st.markdown("---")
-
     render_grid(df, compact=False)
 
 # =========================================================
