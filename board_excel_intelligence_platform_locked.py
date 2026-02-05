@@ -51,7 +51,7 @@ DEPARTMENT_CONFIG = {
     },
     "CAD": {
         "file": "IIGJ Mumbai - Academic expansion Plan_CAD Formatted.xlsx",
-        "sheet": "Formatted_Budget"
+        "sheet": "Formated_Budget"
     }
 }
 
@@ -220,3 +220,4 @@ st.markdown("---")
 st.caption(
     "© Board Excel Intelligence Platform — Locked Academic Expansion Dashboard"
 )
+
