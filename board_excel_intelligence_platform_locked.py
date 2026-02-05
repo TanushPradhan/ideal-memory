@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from st_aggrid import AgGrid, GridOptionsBuilder
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 
 # =========================================================
 # APP CONFIG
@@ -18,7 +18,7 @@ st.caption(
 )
 
 # =========================================================
-# DEPARTMENT CONFIG
+# FILE CONFIG
 # =========================================================
 DEPARTMENT_CONFIG = {
     "Gemology": {
@@ -36,13 +36,69 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
+# COLUMN NAME OVERRIDES (APPROVED)
+# =========================================================
+COLUMN_NAME_OVERRIDES = {
+    "Gemology": {
+        "Unnamed: 1": "Instrument Name",
+        "Unnamed: 2": "Type",
+        "Unnamed: 3": "Specification",
+        "Unnamed: 4": "Quantity",
+        "Unnamed: 5": "Unit Price (In Lakhs)",
+        "Unnamed: 6": "Total in Lakhs",
+        "Unnamed: 7": "Remarks"
+    },
+    "Manufacturing": {
+        "Unnamed: 1": "Particulars",
+        "Unnamed: 2": "Department",
+        "Unnamed: 3": "Details",
+        "Unnamed: 4": "Quantity",
+        "Unnamed: 5": "Cost per Item (In Lakhs)",
+        "Unnamed: 6": "According to Capacity",
+        "Unnamed: 7": "Cost-to-Company (In Lakhs)",
+        "Unnamed: 8": "Remarks"
+    },
+    "CAD": {
+        "Unnamed: 1": "Particulars",
+        "Unnamed: 2": "Specification",
+        "Unnamed: 3": "Quantity",
+        "Unnamed: 4": "Cost per Item",
+        "Unnamed: 5": "Total Cost",
+        "Unnamed: 6": "Remarks"
+    }
+}
+
+# =========================================================
+# HIGHLIGHT RULES (APPROVED)
+# =========================================================
+GEMOLOGY_CONFIG_ROWS = [
+    "number of students",
+    "class requirements",
+    "singular instruments",
+    "instruments per student",
+    "shared instruments",
+    "room preparation",
+    "student per table",
+    "faculty required"
+]
+
+SECTION_HEADER_KEYWORDS = [
+    "instrument name",
+    "specification",
+    "quantity",
+    "unit price",
+    "total",
+    "remarks"
+]
+
+# =========================================================
 # SAFE LOADER
 # =========================================================
 def load_excel(path, sheet):
     if not os.path.exists(path):
         st.error(f"File not found: {path}")
         st.stop()
-    return pd.read_excel(path, sheet_name=sheet)
+    return pd.read_excel(path, sheet_name=sheet).fillna("")
 
 # =========================================================
 # SIDEBAR
@@ -54,96 +110,80 @@ department = st.sidebar.selectbox(
     list(DEPARTMENT_CONFIG.keys())
 )
 
-view_mode = st.sidebar.radio(
-    "View Mode",
-    ["Interactive Spreadsheet", "Executive View"]
-)
-
 # =========================================================
 # LOAD DATA
 # =========================================================
-config = DEPARTMENT_CONFIG[department]
-df = load_excel(config["file"], config["sheet"])
-df = df.fillna("")
+cfg = DEPARTMENT_CONFIG[department]
+df = load_excel(cfg["file"], cfg["sheet"])
+
+# Apply column name overrides
+df.rename(columns=COLUMN_NAME_OVERRIDES.get(department, {}), inplace=True)
 
 # =========================================================
-# AG GRID CONFIG (THIS IS THE MAGIC)
+# AG GRID WITH STATIC HIGHLIGHTS
 # =========================================================
-def render_excel_grid(dataframe):
-    gb = GridOptionsBuilder.from_dataframe(dataframe)
+highlight_js = JsCode("""
+function(params) {
+    const rowText = Object.values(params.data)
+        .join(" ")
+        .toLowerCase();
 
-    gb.configure_default_column(
-        resizable=True,
-        sortable=False,
-        filter=True,
-        wrapText=True,
-        autoHeight=True,
-        cellStyle={
-            "white-space": "normal",
-            "line-height": "1.4",
-            "border": "1px solid #d0d0d0"
-        }
-    )
+    const firstCell = Object.values(params.data)[0].toLowerCase();
 
-    gb.configure_grid_options(
-        domLayout="normal",
-        suppressRowHoverHighlight=False,
-        rowHeight=38
-    )
+    if (
+        ["instrument name", "specification", "quantity", "unit price", "total"]
+            .every(k => rowText.includes(k))
+    ) {
+        return { backgroundColor: "#fff2cc", fontWeight: "bold" };
+    }
 
-    AgGrid(
-        dataframe,
-        gridOptions=gb.build(),
-        fit_columns_on_grid_load=False,
-        height=650,
-        theme="alpine",
-        allow_unsafe_jscode=True
-    )
+    if (
+        ["total", "grand total"].some(k => rowText.includes(k))
+    ) {
+        return { backgroundColor: "#fff4b8", fontWeight: "bold" };
+    }
 
-# =========================================================
-# EXECUTIVE INSIGHTS
-# =========================================================
-def render_insights(dept):
-    st.markdown("## 🧠 Executive Insights")
-    st.markdown("---")
+    if (
+        params.context.department === "Gemology" &&
+        ["number of students", "faculty required", "shared instruments"]
+            .some(k => firstCell.includes(k))
+    ) {
+        return { backgroundColor: "#e6f4ea", fontWeight: "bold" };
+    }
 
-    if dept == "Gemology":
-        st.markdown("""
-- **Student capacity:** ~60–65 students
-- **Shared instruments** reduce per-student cost
-- **High compliance focus** (room sealing, lighting, lab standards)
-- **Capital efficient** with long asset life
+    return null;
+}
 """)
 
-    elif dept == "Manufacturing":
-        st.markdown("""
-- **Total estimated capex:** ₹166+ Lakhs
-- Heavy machinery dominates cost structure
-- Shared capacity logic improves utilization
-- High operational dependency
-""")
+gb = GridOptionsBuilder.from_dataframe(df)
+gb.configure_default_column(
+    wrapText=True,
+    autoHeight=True,
+    resizable=True,
+    cellStyle=highlight_js
+)
 
-    elif dept == "CAD":
-        st.markdown("""
-- Lowest infrastructure cost
-- Software-driven recurring expenses
-- Highest scalability potential
-""")
+gb.configure_grid_options(
+    context={"department": department},
+    rowHeight=38
+)
 
 # =========================================================
 # RENDER
 # =========================================================
-if view_mode == "Executive View":
-    render_insights(department)
-    st.markdown("---")
-
 st.subheader(f"📄 Spreadsheet View — {department}")
-st.caption("Excel-like, read-only view with wrapped text and full gridlines.")
+st.caption("Excel-like view with approved highlights and clean headers.")
 
-render_excel_grid(df)
+AgGrid(
+    df,
+    gridOptions=gb.build(),
+    height=650,
+    theme="alpine",
+    allow_unsafe_jscode=True
+)
 
 # =========================================================
 # FOOTER
 # =========================================================
 st.markdown("---")
-st.caption("© Board Excel Intelligence Platform — Spreadsheet Rendering Layer")
+st.caption("© Board Excel Intelligence Platform — Locked Rendering Layer")
