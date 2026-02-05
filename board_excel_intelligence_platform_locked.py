@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import streamlit.components.v1 as components
 
 # =========================================================
 # APP CONFIG
@@ -35,11 +36,11 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# SAFE EXCEL LOADER (NO DATA LOSS)
+# SAFE EXCEL LOADER (NO ROW DROPS)
 # =========================================================
 def load_excel(path, sheet):
     if not os.path.exists(path):
-        st.error(f"Required file not found:\n{path}")
+        st.error(f"🚫 Required file not found:\n{path}")
         st.stop()
     return pd.read_excel(path, sheet_name=sheet, header=None)
 
@@ -58,44 +59,45 @@ department = st.sidebar.selectbox(
 # =========================================================
 config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
-
-# Replace NaN with empty string (DO NOT DROP ROWS)
-df = df.fillna("")
+df = df.fillna("")  # NEVER drop rows
 
 # =========================================================
-# RENDER AS TRUE HTML TABLE (GRIDLINES + WRAP)
+# HTML TABLE RENDERER (CORRECT WAY)
 # =========================================================
-def render_table(df):
+def render_html_table(df):
     html = """
     <style>
-        .excel-table {
-            width: 100%;
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        .excel-container {
+            max-height: 75vh;
+            overflow: auto;
+            border: 1px solid #ccc;
+        }
+        table {
             border-collapse: collapse;
+            width: 100%;
             font-size: 13px;
         }
-        .excel-table th,
-        .excel-table td {
-            border: 1px solid #d0d0d0;
+        th, td {
+            border: 1px solid #cfcfcf;
             padding: 6px 8px;
             vertical-align: top;
             text-align: left;
             white-space: pre-wrap;
             word-wrap: break-word;
         }
-        .excel-table th {
-            background-color: #f5f5f5;
+        th {
+            background-color: #f3f3f3;
             font-weight: 600;
-        }
-        .excel-container {
-            max-height: 75vh;
-            overflow: auto;
         }
     </style>
     <div class="excel-container">
-    <table class="excel-table">
+    <table>
     """
 
-    # Render rows exactly as-is
     for r_idx, row in df.iterrows():
         html += "<tr>"
         for cell in row:
@@ -112,7 +114,11 @@ def render_table(df):
 st.subheader(f"📄 Spreadsheet View — {department}")
 st.caption("Excel-like, read-only view with wrapped text and full gridlines.")
 
-st.markdown(render_table(df), unsafe_allow_html=True)
+components.html(
+    render_html_table(df),
+    height=800,
+    scrolling=True
+)
 
 # =========================================================
 # FOOTER
