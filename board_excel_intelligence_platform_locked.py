@@ -18,7 +18,7 @@ st.caption(
 )
 
 # =========================================================
-# DEPARTMENT CONFIG (FILES ARE SOURCE OF TRUTH)
+# DEPARTMENT CONFIG
 # =========================================================
 DEPARTMENT_CONFIG = {
     "Gemology": {
@@ -36,13 +36,13 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# SAFE EXCEL LOADER (NO ROW DROPS)
+# SAFE EXCEL LOADER
 # =========================================================
 def load_excel(path, sheet):
     if not os.path.exists(path):
         st.error(f"🚫 Required file not found:\n{path}")
         st.stop()
-    return pd.read_excel(path, sheet_name=sheet, header=None)
+    return pd.read_excel(path, sheet_name=sheet, header=None).fillna("")
 
 # =========================================================
 # SIDEBAR
@@ -59,41 +59,48 @@ department = st.sidebar.selectbox(
 # =========================================================
 config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
-df = df.fillna("")  # NEVER drop rows
 
 # =========================================================
-# HTML TABLE RENDERER (CORRECT WAY)
+# HTML TABLE RENDERER (EXCEL-LIKE, HIGH CONTRAST)
 # =========================================================
 def render_html_table(df):
     html = """
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-        }
         .excel-container {
             max-height: 75vh;
             overflow: auto;
-            border: 1px solid #ccc;
+            border: 1px solid #bfbfbf;
+            background-color: #ffffff;
         }
+
         table {
             border-collapse: collapse;
             width: 100%;
             font-size: 13px;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #000000;
+            background-color: #ffffff;
         }
+
         th, td {
-            border: 1px solid #cfcfcf;
+            border: 1px solid #c0c0c0;
             padding: 6px 8px;
             vertical-align: top;
             text-align: left;
             white-space: pre-wrap;
             word-wrap: break-word;
         }
+
         th {
-            background-color: #f3f3f3;
+            background-color: #f2f2f2;
             font-weight: 600;
         }
+
+        tr:nth-child(even) td {
+            background-color: #fafafa;
+        }
     </style>
+
     <div class="excel-container">
     <table>
     """
