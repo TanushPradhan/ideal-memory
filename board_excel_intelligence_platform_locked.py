@@ -36,7 +36,7 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# HIGHLIGHT RULES (APPROVED EARLIER)
+# HIGHLIGHT RULES (LOCKED)
 # =========================================================
 TOTAL_KEYWORDS = ["total", "grand total", "total (approx.)"]
 
@@ -56,9 +56,9 @@ GEMOLOGY_CONFIG_ROWS = [
     "faculty required"
 ]
 
-TOTAL_HIGHLIGHT_COLOR = "#fff4b8"     # light yellow
-SECTION_HEADER_COLOR = "#e8f2ff"      # light blue
-CONFIG_HIGHLIGHT_COLOR = "#e6f4ea"     # light green
+TOTAL_HIGHLIGHT_COLOR = "#fff4b8"
+SECTION_HEADER_COLOR = "#e8f2ff"
+CONFIG_HIGHLIGHT_COLOR = "#e6f4ea"
 
 # =========================================================
 # SAFE EXCEL LOADER
@@ -85,7 +85,7 @@ config = DEPARTMENT_CONFIG[department]
 df = load_excel(config["file"], config["sheet"])
 
 # =========================================================
-# HTML TABLE RENDERER (RESTORED + FINAL)
+# TABLE RENDERER (UNCHANGED)
 # =========================================================
 def render_html_table(df, department):
     html = f"""
@@ -111,13 +111,6 @@ def render_html_table(df, department):
             vertical-align: top;
             white-space: pre-wrap;
             word-wrap: break-word;
-        }}
-
-        /* Alignment */
-        td:nth-child(1),
-        td:nth-child(2),
-        td:nth-child(9) {{
-            text-align: left;
         }}
 
         td:nth-child(3),
@@ -181,13 +174,10 @@ def render_html_table(df, department):
     return html
 
 # =========================================================
-# DISPLAY
+# DISPLAY TABLE
 # =========================================================
 st.subheader(f"📄 Spreadsheet View — {department}")
-st.caption(
-    "Excel-like, read-only view with wrapped text, gridlines, "
-    "section headers, configuration blocks, and totals."
-)
+st.caption("Excel-like, read-only view with wrapped text and full gridlines.")
 
 components.html(
     render_html_table(df, department),
@@ -196,9 +186,59 @@ components.html(
 )
 
 # =========================================================
+# EXECUTIVE INSIGHTS (STATIC)
+# =========================================================
+st.markdown("---")
+st.subheader(f"🧠 Executive Insights — {department}")
+
+if department == "Manufacturing":
+    st.markdown("""
+**Key Observations**
+- Heavy cost concentration in core machinery such as casting, waxing, and polishing equipment.
+- Several high-value machines are **shared across all students**, improving cost efficiency.
+- Cost-to-company values scale directly with capacity assumptions (60 students).
+
+**Financial Insight**
+- Majority of capital expenditure is front-loaded into durable infrastructure.
+- Consumables form a relatively small but recurring cost block.
+
+**Operational Risk Notes**
+- Shared machinery increases dependency on maintenance uptime.
+- Capacity assumptions must remain aligned with batch size to avoid underutilisation.
+""")
+
+elif department == "Gemology":
+    st.markdown("""
+**Key Observations**
+- Strong emphasis on per-student instruments ensures hands-on training quality.
+- Configuration rows clearly define class strength, spares, and faculty ratios.
+
+**Financial Insight**
+- Investment split between student-level tools and shared lab-grade instruments.
+- Several low-cost accessories scale linearly with student intake.
+
+**Academic Alignment**
+- Layout supports controlled lab environments and security requirements.
+""")
+
+elif department == "CAD":
+    st.markdown("""
+**Key Observations**
+- Cost structure dominated by systems, software, and digital infrastructure.
+- Lower physical infrastructure dependency compared to other departments.
+
+**Financial Insight**
+- Software and licensing costs form a major portion of recurring expenditure.
+- Hardware investment remains comparatively stable once baseline is established.
+
+**Scalability**
+- CAD setup scales efficiently with marginal student additions.
+""")
+
+# =========================================================
 # FOOTER
 # =========================================================
 st.markdown("---")
 st.caption(
-    "© Board Excel Intelligence Platform — Spreadsheet Rendering Layer"
+    "© Board Excel Intelligence Platform — Spreadsheet & Executive Insight Layer"
 )
