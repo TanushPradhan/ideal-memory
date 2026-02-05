@@ -36,15 +36,12 @@ DEPARTMENT_CONFIG = {
 }
 
 # =========================================================
-# PRE-HIGHLIGHT RULES
+# HIGHLIGHT RULES
 # =========================================================
 TOTAL_KEYWORDS = [
     "total",
     "grand total",
-    "total (approx.)",
-    "all instruments cost",
-    "per student instruments",
-    "shared resources"
+    "total (approx.)"
 ]
 
 SECTION_HEADER_KEYWORDS = [
@@ -57,8 +54,20 @@ SECTION_HEADER_KEYWORDS = [
     "remarks"
 ]
 
+GEMOLOGY_CONFIG_ROWS = [
+    "number of students",
+    "class requirements with spare",
+    "singular instruments",
+    "instruments per student",
+    "shared instruments required",
+    "room preparation",
+    "student per table",
+    "faculty required"
+]
+
 TOTAL_HIGHLIGHT_COLOR = "#fff4b8"
 SECTION_HEADER_COLOR = "#fff2cc"
+CONFIG_HIGHLIGHT_COLOR = "#e6f4ea"
 
 # =========================================================
 # SAFE EXCEL LOADER
@@ -88,7 +97,7 @@ df = load_excel(config["file"], config["sheet"])
 # =========================================================
 # HTML TABLE RENDERER
 # =========================================================
-def render_html_table(df):
+def render_html_table(df, department):
     html = f"""
     <style>
         .excel-container {{
@@ -104,7 +113,6 @@ def render_html_table(df):
             font-size: 13px;
             font-family: Arial, Helvetica, sans-serif;
             color: #000000;
-            background-color: #ffffff;
         }}
 
         th, td {{
@@ -126,7 +134,12 @@ def render_html_table(df):
             font-weight: 600;
         }}
 
-        tr:nth-child(even):not(.total-row):not(.section-header) td {{
+        tr.config-row td {{
+            background-color: {CONFIG_HIGHLIGHT_COLOR};
+            font-weight: 600;
+        }}
+
+        tr:nth-child(even):not(.total-row):not(.section-header):not(.config-row) td {{
             background-color: #fafafa;
         }}
     </style>
@@ -137,23 +150,29 @@ def render_html_table(df):
 
     for _, row in df.iterrows():
         row_text = " ".join(str(cell) for cell in row).lower()
+        first_cell = str(row.iloc[0]).lower().strip()
 
         is_total = any(k in row_text for k in TOTAL_KEYWORDS)
         is_section_header = sum(
             1 for k in SECTION_HEADER_KEYWORDS if k in row_text
-        ) >= 4  # strong match threshold
+        ) >= 4
+
+        is_config = (
+            department == "Gemology"
+            and any(first_cell.startswith(k) for k in GEMOLOGY_CONFIG_ROWS)
+        )
 
         row_class = ""
-        if is_section_header:
+        if is_config:
+            row_class = "config-row"
+        elif is_section_header:
             row_class = "section-header"
         elif is_total:
             row_class = "total-row"
 
         html += f'<tr class="{row_class}">'
-
         for cell in row:
             html += f"<td>{cell}</td>"
-
         html += "</tr>"
 
     html += "</table></div>"
@@ -165,11 +184,11 @@ def render_html_table(df):
 st.subheader(f"📄 Spreadsheet View — {department}")
 st.caption(
     "Excel-like, read-only view with wrapped text, gridlines, "
-    "section headers, and highlighted totals."
+    "section headers, configuration blocks, and totals."
 )
 
 components.html(
-    render_html_table(df),
+    render_html_table(df, department),
     height=800,
     scrolling=True
 )
